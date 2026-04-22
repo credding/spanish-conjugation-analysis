@@ -1,0 +1,9 @@
+.idea/
+.venv/
+__pycache__/
+
+corpes.db
+
+dle_pages/
+scratch_space/
+output/

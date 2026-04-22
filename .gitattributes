@@ -1,0 +1,4 @@
+/resources/corpes/frecuencia_elementos_corpes_1_4.txt filter=lfs diff=lfs merge=lfs -text
+/resources/corpes/frecuencia_formas_ortograficas_1_4.txt filter=lfs diff=lfs merge=lfs -text
+/resources/corpes/frecuencia_lemas_corpes_1_4.txt filter=lfs diff=lfs merge=lfs -text
+/resources/corpes/listas_dp_lemas.tsv filter=lfs diff=lfs merge=lfs -text
