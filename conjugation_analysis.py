@@ -24,7 +24,7 @@ class IrregularConstruction(DiffAnnotation):
 def tag_correct_form(correct_form: VerbForm) -> TaggedElement[VerbForm]:
     tagged_form = element_index.index_element(correct_form)
     tagged_form.tag(Regularity.CORRECT_FORM)
-    if correct_form.variant:
+    if correct_form.variant is not None:
         tagged_form.tag(correct_form.variant)
     return tagged_form
 
@@ -40,25 +40,26 @@ def tag_form_regularity(correct_form: TaggedElement[VerbForm]):
         return
     correct_form.tag(Regularity.IRREGULAR_FORM)
 
-    if not regular_forms:
+    if len(regular_forms) == 0:
         return
     regular_form = regular_forms[0]
 
-    annotate_diff(IrregularForm, correct_form.annotated_form, regular_form.text)
-    _tag_irregular_affix(correct_form, regular_form)
-    _tag_irregular_subject(correct_form, regular_form)
+    correct_form.relate_to(regular_form, Regularity.REGULAR_FORM)
+
+    annotate_diff(IrregularForm, correct_form.annotated_form, regular_form.element.form)
+    _tag_irregular_affix(correct_form, regular_form.annotated_form)
+    _tag_irregular_subject(correct_form, regular_form.annotated_form)
 
 
 def _tag_irregular_affix(
     correct_form: TaggedElement[VerbForm], regular_form: AnnotatedString
 ):
     regular_affix = regular_form.get_annotation(VerbAffix)
-    assert regular_affix
 
     affix_start_match = re.search(
         "^([iíy])?[aáeéíioó]+[^aáeéiíoó]*", regular_affix.text
     )
-    assert affix_start_match
+    assert affix_start_match is not None
 
     affix_pattern = (
         "[aáeéiíoó]+[^aáeéiíoó]*" + regular_affix.text[affix_start_match.end() :] + "$"
@@ -67,7 +68,7 @@ def _tag_irregular_affix(
         affix_pattern = "[iíy]?" + affix_pattern
 
     affix_match = re.search(affix_pattern, correct_form.annotated_form.text)
-    assert affix_match
+    assert affix_match is not None
 
     correct_form.annotated_form.annotate(
         VerbAffix, affix_match.start(), len(correct_form.annotated_form.text)
@@ -77,8 +78,8 @@ def _tag_irregular_affix(
 def _tag_irregular_subject(
     correct_form: TaggedElement[VerbForm], regular_form: AnnotatedString
 ):
-    regular_subject = regular_form.get_annotation(VerbSubject)
-    if not regular_subject:
+    regular_subject = regular_form.get_annotation(VerbSubject, raise_if_absent=False)
+    if regular_subject is None:
         return
 
     if correct_form.annotated_form.text.endswith(regular_subject.text):
@@ -101,7 +102,7 @@ def tag_form_construction(correct_form: TaggedElement[VerbForm]):
         Regularity.REGULAR_CONSTRUCTION,
     )
 
-    if not regular_constructions:
+    if len(regular_constructions) == 0:
         return
 
     if Regularity.REGULAR_CONSTRUCTION in correct_form.tags:
@@ -117,11 +118,13 @@ def tag_form_construction(correct_form: TaggedElement[VerbForm]):
         ),
         regular_constructions[0],
     )
-    if not regular_construction:
-        return
+
+    correct_form.relate_to(regular_construction, Regularity.REGULAR_CONSTRUCTION)
 
     annotate_diff(
-        IrregularConstruction, correct_form.annotated_form, regular_construction.text
+        IrregularConstruction,
+        correct_form.annotated_form,
+        regular_construction.element.form,
     )
 
 
@@ -129,7 +132,7 @@ def _tag_regular_forms(
     correct_form: TaggedElement[VerbForm],
     regular_conjugator: VerbConjugator,
     regular_tag: Regularity,
-) -> list[AnnotatedString]:
+) -> list[TaggedElement]:
     regular_forms = regular_conjugator.conjugate(
         correct_form.element.lemma,
         correct_form.element.tense,
@@ -137,18 +140,22 @@ def _tag_regular_forms(
         correct_form.element.variant,
     )
 
-    for i, regular_form in enumerate(regular_forms):
-        tagged_form = element_index.index_element(
-            replace(
-                correct_form.element,
-                form=regular_form.text,
-                preference=i,
-            )
+    tagged_forms = [
+        element_index.index_element(
+            replace(correct_form.element, form=x.text, preference=None)
         )
+        for x in regular_forms
+    ]
+
+    for regular_form, tagged_form in zip(regular_forms, tagged_forms):
         for annotation in regular_form.annotations:
-            tagged_form.annotated_form.add_annotation(annotation)
+            tagged_form.annotated_form.add_annotation(
+                replace(annotation, string=tagged_form.annotated_form)
+            )
         tagged_form.tag(regular_tag)
-        if regular_form.get_annotation(SpellingChange):
+        if Regularity.CORRECT_FORM not in tagged_form.tags:
+            tagged_form.tag(Regularity.INCORRECT_FORM)
+        if regular_form.get_annotation(SpellingChange, raise_if_absent=False):
             tagged_form.tag(Regularity.SPELLING_CHANGE)
 
-    return regular_forms
+    return tagged_forms

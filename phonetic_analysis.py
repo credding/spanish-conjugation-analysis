@@ -10,7 +10,7 @@ class PhonemeKind(Enum):
     WEAK_VOWEL = auto()
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class Phoneme(StringAnnotation):
     phoneme_kind: PhonemeKind
     phoneme: str
@@ -65,11 +65,11 @@ def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
 
 
 def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
-    if not word.text:
+    if word.text == "":
         return None
 
     first_phoneme = _START_SUBSTITUTE_PHONEMES.get(word.text[0])
-    if first_phoneme:
+    if first_phoneme is not None:
         return word.annotate(Phoneme, 0, 1, PhonemeKind.CONSONANT, first_phoneme)
 
     return _annotate_next_phoneme(word, 0)

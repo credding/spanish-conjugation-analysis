@@ -53,44 +53,49 @@ def _get_phonetic_spelling(phoneme: Phoneme) -> str:
 
 
 def _get_heteronymic_spelling(phoneme: Phoneme) -> str:
-    return phoneme.phoneme.translate(TRANSLATE_REMOVE_STRESS)
+    return phoneme.text.translate(TRANSLATE_REMOVE_STRESS)
 
 
 def _get_paronymic_spelling(phoneme: Phoneme) -> str:
     return phoneme.phoneme
 
 
-def tag_homonyms(element: TaggedElement):
+def tag_homonyms(element: TaggedElement) -> set[TaggedElement]:
     shared_forms = element_index.lookup(element.class_, element.form)
     shared_forms -= element_index.lookup(element.lemma, element.form)
-    if shared_forms:
-        element.tag(Homonym.SHARED_FORM)
+    for x in shared_forms:
+        element.relate_to(x, Homonym.SHARED_FORM)
 
     phonetic_spelling = element.get_tag(PhoneticSpelling)
     heteronymic_spelling = element.get_tag(HeteronymicSpelling)
     paronymic_spelling = element.get_tag(ParonymicSpelling)
-    assert phonetic_spelling and heteronymic_spelling and paronymic_spelling
 
-    paronyms = element_index.lookup(paronymic_spelling)
-    paronyms -= element_index.lookup(element.class_, paronymic_spelling)
+    all_homonyms = element_index.lookup(paronymic_spelling)
+    all_homonyms -= element_index.lookup(element.class_, paronymic_spelling)
 
-    if paronyms:
-        element.tag(Homonym.HOMONYM)
+    if len(all_homonyms) == 0:
+        return all_homonyms
 
-    homographs = paronyms & element_index.lookup(element.form)
-    if homographs:
-        element.tag(Homonym.HOMOGRAPH)
+    element.tag(Homonym.HOMONYM)
 
-    paronyms -= homographs
-    homophones = paronyms & element_index.lookup(phonetic_spelling)
-    if homophones:
-        element.tag(Homonym.HOMOPHONE)
+    homonyms = set(all_homonyms)
 
-    paronyms -= homophones
-    heteronyms = paronyms & element_index.lookup(heteronymic_spelling)
-    if heteronyms:
-        element.tag(Homonym.HETERONYM)
+    homographs = homonyms & element_index.lookup(element.form)
+    for x in homographs:
+        element.relate_to(x, Homonym.HOMONYM, Homonym.HOMOGRAPH)
 
-    paronyms -= heteronyms
-    if paronyms:
-        element.tag(Homonym.PARONYM)
+    homonyms -= homographs
+    homophones = homonyms & element_index.lookup(phonetic_spelling)
+    for x in homophones:
+        element.relate_to(x, Homonym.HOMONYM, Homonym.HOMOPHONE)
+
+    homonyms -= homophones
+    heteronyms = homonyms & element_index.lookup(heteronymic_spelling)
+    for x in heteronyms:
+        element.relate_to(x, Homonym.HOMONYM, Homonym.HETERONYM)
+
+    homonyms -= heteronyms
+    for x in homonyms:
+        element.relate_to(x, Homonym.PARONYM)
+
+    return all_homonyms

@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from phonetic_analysis import PhonemeKind, Phoneme
+from phonetic_analysis import Phoneme, PhonemeKind
 from string_analysis import AnnotatedString, StringAnnotation
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class Syllable(StringAnnotation):
     pass
 
@@ -75,7 +75,7 @@ class _SyllableAnalysisState:
         self._syllable_phonemes.append(phoneme)
 
     def evaluate_end(self) -> list[Syllable]:
-        if self._syllable_phonemes:
+        if len(self._syllable_phonemes) > 0:
             self._annotate_syllable()
         return self._syllables
 
@@ -101,7 +101,7 @@ class _SyllableAnalysisState:
                 self._syllable_part = _SyllablePart.WEAK_VOWEL
 
     def _evaluate_at_end_consonant_labiodental_velar(self, phoneme: Phoneme):
-        if phoneme.phoneme_kind == PhonemeKind.CONSONANT and phoneme.phoneme in ("l", "r"):
+        if phoneme.phoneme_kind == PhonemeKind.CONSONANT and phoneme.phoneme in "lr":
             self._add_syllable_without_previous_phoneme()
             self._syllable_part = _SyllablePart.START_CONSONANT
             return

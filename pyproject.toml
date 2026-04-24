@@ -8,8 +8,8 @@ dependencies = [
     "curl-cffi>=0.15.0",
     "joblib>=1.5.3",
     "joblib-stubs>=1.5.3.1.20260117",
-    "pydantic>=2.13.2",
+    "pydantic>=2.13.3",
     "requests>=2.33.1",
     "ruff>=0.15.11",
-    "ty>=0.0.31",
+    "ty>=0.0.32",
 ]

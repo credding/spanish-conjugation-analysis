@@ -1,82 +1,8 @@
-import logging
 from contextlib import closing
-from dataclasses import InitVar, dataclass, field
 
 import corpes_db
-from corpes_tag import ClassTag, Tag
-from grammar_model import Class, Element, Lemma
-
-_logger = logging.getLogger(__name__)
-
-
-@dataclass
-class FreqElement:
-    form: str
-    lemma: str
-    tag_str: InitVar[str]
-    tag: Tag = field(init=False)
-    freq: int
-    freq_norm_with_punc: float
-    freq_norm_without_punc: float
-
-    def __post_init__(self, tag_str: str):
-        self.tag = Tag(tag_str)
-
-    @property
-    def class_(self) -> Class:
-        return self.tag.class_tag.class_
-
-    def as_element(self) -> Element:
-        return Element(self.form, Lemma(self.lemma, self.class_))
-
-
-@dataclass
-class FreqLemma:
-    lemma: str
-    class_str: InitVar[str]
-    class_tag: ClassTag = field(init=False)
-    freq: int
-    freq_norm_with_punc: float
-    freq_norm_without_punc: float
-
-    def __post_init__(self, class_str: str):
-        self.class_tag = ClassTag(class_str)
-
-    @property
-    def class_(self) -> Class:
-        return self.class_tag.class_
-
-    def as_lemma(self) -> Lemma:
-        return Lemma(self.lemma, self.class_)
-
-
-@dataclass
-class FreqForm:
-    form: str
-    freq: int
-    freq_norm: float
-
-
-@dataclass
-class DpLemma:
-    lemma: str
-    class_str: InitVar[str]
-    class_tag: ClassTag = field(init=False)
-    freq: int
-    freq_norm: float
-    dp: float
-    num_countries: int
-    freq_adj: float
-
-    def __post_init__(self, class_str: str):
-        self.class_tag = ClassTag(class_str)
-
-    @property
-    def class_(self) -> Class:
-        return self.class_tag.class_
-
-    def as_lemma(self) -> Lemma:
-        return Lemma(self.lemma, self.class_)
+from corpes_model import DpLemma, FreqElement
+from grammar_model import Lemma
 
 
 class CORPES:

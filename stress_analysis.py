@@ -7,7 +7,7 @@ from syllable_analysis import Syllable
 _PENULTIMATE_STRESS_TERMINAL_SOUNDS = "aeiouns"
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class WordStress(StringAnnotation):
     pass
 
@@ -23,7 +23,7 @@ def _get_stressed_syllable(syllables: list[Syllable]) -> Syllable:
         (s for s in reversed(syllables) if any(x in STRESSED_VOWELS for x in s.text)),
         None,
     )
-    if stressed_syllable:
+    if stressed_syllable is not None:
         return stressed_syllable
 
     return _get_normal_stressed_syllable(syllables)

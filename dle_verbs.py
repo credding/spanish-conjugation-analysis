@@ -11,7 +11,7 @@ _CONJUG_C_PATTERN = re.compile(r"Conjug\. c\. (\w+\b(?: o c\. \w+\b)*)")
 
 @memory.cache
 def get_verb(verb: Lemma) -> Verb:
-    _logger.info("Fetching verb data for %s", verb)
+    _logger.info("fetching verb data for %s", verb)
 
     page = dle.get_page(verb.base_form)
 
@@ -19,7 +19,7 @@ def get_verb(verb: Lemma) -> Verb:
 
     for tag in page.document.find_all(class_="c-text-intro"):
         conjug_c = _CONJUG_C_PATTERN.search(tag.get_text())
-        if not conjug_c:
+        if conjug_c is None:
             continue
         for model_verb in conjug_c.group(1).split(" o c. "):
             models.append(Verb(model_verb))

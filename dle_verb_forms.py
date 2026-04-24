@@ -5,11 +5,12 @@ from typing import Iterable, cast
 from bs4 import Tag
 
 from grammar_model import Subject, Tense, Variant, Verb, VerbForm
-from run_context import dle, memory
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+from run_context import dle, memory
 
 _logger = logging.getLogger(__name__)
 
+# fmt: off
 _TENSES = {
     ("Formas-no-personales", "Infinitivo"): Tense.INFINITIVE,
     ("Formas-no-personales", "Gerundio"): Tense.GERUND,
@@ -24,6 +25,43 @@ _TENSES = {
     ("Subjuntivo", "Futuro simple / Futuro"): Tense.SUBJUNCTIVE_FUTURE,
     ("Imperativo", "Imperativo"): Tense.IMPERATIVE,
 }
+# fmt: on
+
+# fmt: off
+_SUBJECT_GROUPS = {
+    (Tense.PRESENT, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
+    (Tense.PRESENT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.IMPERFECT, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.IMPERFECT, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
+    (Tense.IMPERFECT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.PAST, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.PAST, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
+    (Tense.PAST, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.FUTURE, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.FUTURE, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
+    (Tense.FUTURE, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.CONDITIONAL, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.CONDITIONAL, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
+    (Tense.CONDITIONAL, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.SUBJUNCTIVE_PRESENT, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.SUBJUNCTIVE_PRESENT, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
+    (Tense.SUBJUNCTIVE_PRESENT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.SUBJUNCTIVE_PAST, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.SUBJUNCTIVE_PAST, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
+    (Tense.SUBJUNCTIVE_PAST, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+    (Tense.SUBJUNCTIVE_FUTURE, Subject.TU): [Subject.TU, Subject.VOS],
+    (Tense.SUBJUNCTIVE_FUTURE, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
+    (Tense.SUBJUNCTIVE_FUTURE, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
+}
+# fmt: on
+
+_REDUNDANT_SUBJECTS = {
+    (tense, extra_subject)
+    for (tense, subject), subjects in _SUBJECT_GROUPS.items()
+    for extra_subject in subjects
+    if extra_subject != subject
+}
+
 _FORM_DELIM_PATTERN = re.compile(r" o | u |, |/")
 _FORM_PATTERN = re.compile(r"([\w ]+?)(?: \((\w+): ([\w ]+)\))?")
 
@@ -43,19 +81,19 @@ _REFLEXIVE_PRONOUNS = {
 
 @memory.cache
 def get_verb_forms(verb: Verb) -> list[VerbForm]:
-    _logger.info("Fetching verb forms for %s", verb)
+    _logger.info("fetching verb forms for %s", verb)
 
     page = dle.get_page(verb.base_form)
 
     verb_forms: list[VerbForm] = []
 
     conjugation_anchor = page.document.find(attrs={"name": "conjugacion"})
-    if not conjugation_anchor:
-        raise Exception("Missing conjugation section")
+    if conjugation_anchor is None:
+        raise Exception("missing conjugation section")
 
     conjugation_section = conjugation_anchor.find_parent("section")
-    if not conjugation_section:
-        raise Exception("Missing conjugation section")
+    if conjugation_section is None:
+        raise Exception("missing conjugation section")
 
     for mood_group in conjugation_section.find_all(class_="c-collapse"):
         mood_id: str = cast(str, mood_group["id"])
@@ -88,15 +126,15 @@ def _parse_conjugation_table(
 
                 case "td":
                     tense_name = col_headers.get(col_idx)
-                    if not tense_name:
+                    if tense_name is None:
                         continue
 
                     tense = _TENSES.get((mood_id, tense_name))
-                    if not tense:
+                    if tense is None:
                         continue
 
                     form_text = cell_tag.get_text()
-                    if not row_header:
+                    if row_header is None or row_header == "":
                         for form in _parse_form(
                             verb, tense, Subject.IMPERSONAL, form_text
                         ):
@@ -150,43 +188,34 @@ def _parse_form(
     for i, form in enumerate(_FORM_DELIM_PATTERN.split(form)):
         form_parts = _FORM_PATTERN.fullmatch(form)
 
-        if not form_parts:
-            raise Exception(f"Could not parse verb form {form}")
+        if form_parts is None:
+            raise Exception(f"could not parse verb form {form}")
 
-        if tense == Tense.SUBJUNCTIVE_PAST:
-            if i % 2 == 0:
-                variant = Variant.RA
+        if (tense, subject) not in _REDUNDANT_SUBJECTS:
+            if tense == Tense.SUBJUNCTIVE_PAST:
+                if i % 2 == 0:
+                    variant = Variant.RA
+                else:
+                    variant = Variant.SE
+                preference = i // 2
             else:
-                variant = Variant.SE
-            preference = i // 2
-        else:
-            variant = None
-            preference = i
+                variant = None
+                preference = i
 
-        form = remove_reflexive_pronoun(verb, form_parts[1], tense, subject)
-        yield VerbForm(
-            lemma=verb,
-            form=form,
-            tense=tense,
-            subject=subject,
-            variant=variant,
-            preference=preference,
-        )
+            form = _remove_reflexive_pronoun(verb, form_parts[1], tense, subject)
+            subject_group = _SUBJECT_GROUPS.get((tense, subject), [subject])
+            yield VerbForm(
+                verb, form, tense, subject, subject_group, variant, preference
+            )
 
         if form_parts[2]:
             subject = Subject(form_parts[2])
-            form = remove_reflexive_pronoun(verb, form_parts[3], tense, subject)
-            yield VerbForm(
-                lemma=verb,
-                form=form,
-                tense=tense,
-                subject=subject,
-                variant=None,
-                preference=0,
-            )
+            form = _remove_reflexive_pronoun(verb, form_parts[3], tense, subject)
+            subject_group = [subject]
+            yield VerbForm(verb, form, tense, subject, subject_group, None, 0)
 
 
-def remove_reflexive_pronoun(
+def _remove_reflexive_pronoun(
     verb: Verb, form: str, tense: Tense, subject: Subject
 ) -> str:
     if not verb.is_reflexive:
@@ -200,7 +229,7 @@ def remove_reflexive_pronoun(
             return form
         case Tense.IMPERATIVE, Subject.VOS:
             form = form.removesuffix(pronoun)
-            return form [:-1] + form[-1].translate(TRANSLATE_ADD_STRESS)
+            return form[:-1] + form[-1].translate(TRANSLATE_ADD_STRESS)
         case Tense.IMPERATIVE, Subject.VOSOTROS:
             return form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS) + "d"
         case Tense.GERUND | Tense.IMPERATIVE, _:

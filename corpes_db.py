@@ -7,9 +7,9 @@ from resources import obj_path, resources_path
 
 _logger = logging.getLogger(__name__)
 
-_corpes_db_path = obj_path.joinpath("corpes.db")
-_corpes_schema_path = resources_path.joinpath("corpes_schema.sql")
-_corpes_data_path = resources_path.joinpath("corpes")
+_corpes_db_path = obj_path / "corpes.db"
+_corpes_schema_path = resources_path / "corpes_schema.sql"
+_corpes_data_path = resources_path / "corpes"
 
 
 def connect() -> sqlite3.Connection:
@@ -28,7 +28,7 @@ def initialize():
             if cur.fetchone()[0]:
                 return
 
-    _logger.info("Initializing CORPES database")
+    _logger.info("initializing CORPES database")
 
     _corpes_db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -119,7 +119,7 @@ def _load_table_tsv(
     values_clause = ", ".join(f":{x}" for x in column_names)
     insert_statement = f"INSERT INTO {table_name} (id, {column_names_clause}) VALUES (:id, {values_clause});"
 
-    tsv_path = _corpes_data_path.joinpath(tsv_name)
+    tsv_path = _corpes_data_path / tsv_name
     with tsv_path.open("r", newline="") as f:
         for _ in range(skip_lines):
             next(f)
@@ -133,7 +133,7 @@ def _load_table_tsv(
                 cur.execute(insert_statement, {"id": reader.line_num, **row})
             except sqlite3.IntegrityError as e:
                 _logger.warning(
-                    "Error inserting row %d into %s: %s; data: %s",
+                    "error inserting row %d into %s: %s; data: %s",
                     reader.line_num,
                     table_name,
                     e,

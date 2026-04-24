@@ -5,15 +5,17 @@ from typing import Callable, Concatenate
 from string_analysis import AnnotatedString, StringAnnotation
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class DiffAnnotation(StringAnnotation, ABC):
     from_string: str
 
     @property
+    def stop_offset(self):
+        return len(self.string.text) - self.stop
+
+    @property
     def from_text(self) -> str:
-        return self.from_string[
-            self.start : -(len(self.string.text) - self.stop) or None
-        ]
+        return self.from_string[self.start : -self.stop_offset or None]
 
     def __repr__(self):
         return (

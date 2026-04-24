@@ -1,10 +1,10 @@
 from abc import ABC
 from dataclasses import dataclass, field, replace
 from functools import total_ordering
-from typing import Callable, Concatenate
+from typing import Callable, Concatenate, Literal, overload
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 @total_ordering
 class StringAnnotation(ABC):
     string: AnnotatedString
@@ -12,7 +12,10 @@ class StringAnnotation(ABC):
     stop: int
 
     def __post_init__(self) -> None:
-        assert 0 <= self.start <= self.stop <= len(self.string.text)
+        if self.start < 0:
+            raise ValueError(f"start must be >= 0, got {self.start}")
+        if self.stop > len(self.string.text):
+            raise ValueError(f"stop must be <= string length, got {self.stop}")
 
     @property
     def text(self) -> str:
@@ -42,7 +45,7 @@ class StringAnnotation(ABC):
         )
 
 
-@dataclass
+@dataclass(eq=False)
 class AnnotatedString:
     text: str
     annotations: set[StringAnnotation] = field(default_factory=set)
@@ -60,11 +63,10 @@ class AnnotatedString:
         self.annotations.add(annotation)
         return annotation
 
-    def add_annotation[T: StringAnnotation](self, annotation: T) -> T:
-        assert annotation.string.text == self.text
-        annotation = replace(annotation, string=self)
+    def add_annotation[T: StringAnnotation](self, annotation: T):
+        if annotation.string is not self:
+            raise ValueError(f"annotation {annotation} is not for this string")
         self.annotations.add(annotation)
-        return annotation
 
     def get_annotations[T: StringAnnotation](
         self,
@@ -83,15 +85,44 @@ class AnnotatedString:
             )
         )
 
+    @overload
     def get_annotation[T: StringAnnotation](
         self,
         cls: type[T],
         start: int | None = None,
         stop: int | None = None,
+        /,
+        raise_if_absent: Literal[True] = True,
+    ) -> T: ...
+    @overload
+    def get_annotation[T: StringAnnotation](
+        self,
+        cls: type[T],
+        start: int | None = None,
+        stop: int | None = None,
+        /,
+        raise_if_absent: bool = True,
+    ) -> T | None: ...
+    def get_annotation[T: StringAnnotation](
+        self,
+        cls: type[T],
+        start: int | None = None,
+        stop: int | None = None,
+        /,
+        raise_if_absent: bool = True,
     ) -> T | None:
         annotations = self.get_annotations(cls, start, stop)
-        assert len(annotations) <= 1
-        return annotations[0] if annotations else None
+        if len(annotations) == 0:
+            if raise_if_absent:
+                raise KeyError(
+                    f"no annotation of type {cls} found for string {self.text}"
+                )
+            return None
+        if len(annotations) > 1:
+            raise ValueError(
+                f"multiple annotations of type {cls} found for string {self.text}"
+            )
+        return annotations[0]
 
     def remove_annotations[T: StringAnnotation](
         self,
@@ -103,16 +134,37 @@ class AnnotatedString:
         self.annotations -= set(annotations)
         return annotations
 
+    @overload
     def remove_annotation[T: StringAnnotation](
         self,
         cls: type[T],
         start: int | None = None,
         stop: int | None = None,
+        /,
+        raise_if_absent: Literal[True] = True,
+    ) -> T: ...
+    @overload
+    def remove_annotation[T: StringAnnotation](
+        self,
+        cls: type[T],
+        start: int | None = None,
+        stop: int | None = None,
+        /,
+        raise_if_absent: bool = True,
+    ) -> T | None: ...
+    def remove_annotation[T: StringAnnotation](
+        self,
+        cls: type[T],
+        start: int | None = None,
+        stop: int | None = None,
+        /,
+        raise_if_absent: bool = True,
     ) -> T | None:
-        annotation = self.get_annotation(cls, start, stop)
-        if not annotation:
-            return None
-        self.annotations.remove(annotation)
+        annotation = self.get_annotation(
+            cls, start, stop, raise_if_absent=raise_if_absent
+        )
+        if annotation is not None:
+            self.annotations.remove(annotation)
         return annotation
 
     def __getitem__(self, segment: slice) -> AnnotatedString:

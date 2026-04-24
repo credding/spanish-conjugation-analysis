@@ -2,37 +2,39 @@ import csv
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cache
 
 from diff_analysis import DiffAnnotation, annotate_diff
+from element_index import ElementIndex
 from grammar_model import Regularity, Subject, Tense, Variant, Verb, VerbForm
-from resources import resources_path
 from phonetic_analysis import (
     SOFT_VOWELS,
     TRANSLATE_ADD_STRESS,
     VOWELS,
     Phoneme,
-    annotate_phonemes, PhonemeKind,
+    PhonemeKind,
+    annotate_phonemes,
 )
+from resources import resources_path
 from string_analysis import AnnotatedString, StringAnnotation
-from element_index import ElementIndex
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class VerbAffix(StringAnnotation):
     pass
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class VerbSubject(StringAnnotation):
     pass
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class VerbVariant(StringAnnotation):
     pass
 
 
-@dataclass(eq=False, repr=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class SpellingChange(DiffAnnotation):
     pass
 
@@ -49,7 +51,7 @@ class VerbConjugator(ABC):
         pass
 
 
-class SimpleConjugator(VerbConjugator):
+class RegularFormConjugator(VerbConjugator):
     def conjugate(
         self,
         verb: Verb,
@@ -57,152 +59,28 @@ class SimpleConjugator(VerbConjugator):
         subject: Subject,
         variant: Variant | None,
     ) -> list[AnnotatedString]:
-        key = _VerbFormSpecKey(verb.ending, tense, subject, variant)
-        spec = _REGULAR_CONJUGATION_LOOKUP.get(key)
-        if not spec:
+        spec_key = _VerbFormSpecKey(verb.ending, tense, subject, variant)
+        spec = _REGULAR_CONJUGATION_LOOKUP.get(spec_key)
+        if spec is None:
             return []
 
-        form_candidates = []
+        form_candidates: list[AnnotatedString] = []
 
         for from_form in self._get_from_form_candidates(
             verb, spec.from_tense, spec.from_subject
         ):
-            stem = from_form[:]
-            annotate_phonemes(stem)
-
-            if spec.truncate_str:
-                if not re.search(spec.truncate_str.replace("_", ".") + "$", stem.text):
-                    continue
-                stem = stem[: -len(spec.truncate_str)]
-
-            form = self._conjugate_form(subject, variant, stem, spec)
-            form.remove_annotations(Phoneme)
-
-            form_candidates.append(form)
+            form = _conjugate_form(from_form, spec)
+            if form is not None:
+                form_candidates.append(form)
 
         return form_candidates
-
-    def _conjugate_form(
-        self,
-        subject: Subject,
-        variant: Variant | None,
-        stem: AnnotatedString,
-        spec: _VerbFormSpec,
-    ) -> AnnotatedString:
-        if not spec.affix:
-            return stem
-
-        affix = self._adapt_affix(stem, spec.affix)
-        stem = self._adapt_stem(stem, affix)
-
-        if spec.pre_affix_stress:
-            stem.text = stem.text[:-1] + stem.text[-1].translate(TRANSLATE_ADD_STRESS)
-
-        form = AnnotatedString(stem.text + affix)
-
-        affix_annotation = stem.remove_annotation(VerbAffix)
-        if affix_annotation:
-            affix_start = affix_annotation.start
-        else:
-            affix_start = len(stem.text)
-
-        form.annotate(VerbAffix, affix_start, len(form.text))
-
-        if subject is not Subject.IMPERSONAL:
-            subject_annotation = stem.remove_annotation(VerbSubject)
-            if subject_annotation:
-                subject_start = subject_annotation.start
-            else:
-                subject_start = len(stem.text)
-            if spec.subject_len:
-                subject_start = len(form.text) - spec.subject_len
-
-            form.annotate(VerbSubject, subject_start, len(form.text))
-
-        if variant:
-            form.annotate(VerbVariant, len(stem.text), len(stem.text) + 2)
-
-        return form
 
     def _get_from_form_candidates(
         self, verb: Verb, tense: Tense | None, subject: Subject | None
     ) -> list[AnnotatedString]:
-        if not tense or not subject:
-            return [AnnotatedString(verb.infinitive)]
+        if tense is None or subject is None:
+            return [_infinitive_form(verb)]
         return self.conjugate(verb, tense, subject, None)
-
-    def _adapt_affix(self, stem: AnnotatedString, affix: str) -> str:
-        return affix
-
-    def _adapt_stem(self, stem: AnnotatedString, affix: str) -> AnnotatedString:
-        return stem
-
-
-class RegularFormConjugator(SimpleConjugator):
-    _simple_conjugator: SimpleConjugator = SimpleConjugator()
-
-    def _conjugate_form(
-        self,
-        subject: Subject,
-        variant: Variant | None,
-        stem: AnnotatedString,
-        spec: _VerbFormSpec,
-    ) -> AnnotatedString:
-        regular_form = super()._conjugate_form(subject, variant, stem, spec)
-
-        simple_form = self._simple_conjugator._conjugate_form(
-            subject, variant, stem, spec
-        )
-
-        annotate_diff(SpellingChange, regular_form, simple_form.text)
-
-        return regular_form
-
-    def _adapt_affix(self, stem: AnnotatedString, affix: str) -> str:
-        if not stem.text or len(affix) < 2:
-            return affix
-
-        stem_phonemes = stem.get_annotations(Phoneme)
-
-        if affix[0] == "i":
-            if affix[1] in VOWELS:
-                if stem_phonemes[-1].phoneme_kind in (PhonemeKind.STRONG_VOWEL, PhonemeKind.WEAK_VOWEL):
-                    return "y" + affix[1:]
-                elif stem_phonemes[-1].phoneme in ("y", "ñ"):
-                    return affix[1:]
-            elif stem_phonemes[-1].phoneme_kind is PhonemeKind.STRONG_VOWEL:
-                return "í" + affix[1:]
-
-        return affix
-
-    def _adapt_stem(self, stem: AnnotatedString, affix: str) -> AnnotatedString:
-        if not stem.text or not affix:
-            return stem
-
-        stem_phonemes = stem.get_annotations(Phoneme)
-
-        match stem_phonemes[-1].phoneme, stem_phonemes[-1].text, affix[0] in SOFT_VOWELS:
-            case "u", "u", True:
-                if len(stem_phonemes) >= 2 and stem_phonemes[-2].phoneme == "g":
-                    return stem[:-1] + "ü"
-            case "u", "ü", False:
-                return stem[:-1] + "u"
-            case "g", "g", True:
-                return stem[:-1] + "gu"
-            case "g", "gu", False:
-                return stem[:-2] + "g"
-            case "k", "c", True:
-                return stem[:-1] + "qu"
-            case "k", "qu", False:
-                return stem[:-2] + "c"
-            case "s", "z", True:
-                return stem[:-1] + "c"
-            case "s", "c", False:
-                return stem[:-1] + "z"
-            case "j", "g", False:
-                return stem[:-1] + "j"
-
-        return stem
 
 
 class RegularConstructionConjugator(RegularFormConjugator):
@@ -212,30 +90,150 @@ class RegularConstructionConjugator(RegularFormConjugator):
     def _get_from_form_candidates(
         self, verb: Verb, tense: Tense | None, subject: Subject | None
     ) -> list[AnnotatedString]:
-        if not tense or not subject:
+        if tense is None or subject is None:
             return []
         return [
             x.annotated_form
             for x in sorted(
-                self._index.lookup(VerbForm, Regularity.CORRECT_FORM, verb, tense, subject),
+                self._index.lookup(
+                    VerbForm, Regularity.CORRECT_FORM, verb, tense, subject
+                ),
                 key=lambda x: x.element.preference,
             )
         ]
+
+
+@cache
+def _infinitive_form(verb: Verb) -> AnnotatedString:
+    return AnnotatedString(verb.infinitive)
+
+
+@cache
+def _conjugate_form(
+    from_form: AnnotatedString, spec: _VerbFormSpec
+) -> AnnotatedString | None:
+    stem = from_form[:]
+    annotate_phonemes(stem)
+
+    if spec.truncate_len > 0:
+        assert spec.truncate_pattern
+        if not spec.truncate_pattern.search(stem.text):
+            return None
+        stem = stem[: -spec.truncate_len]
+
+    if spec.affix == "":
+        return stem
+
+    if spec.pre_affix_stress:
+        stem.text = stem.text[:-1] + stem.text[-1].translate(TRANSLATE_ADD_STRESS)
+
+    simple_form = stem.text + spec.affix
+
+    affix = _adapt_affix(stem, spec.affix)
+    stem = _adapt_stem(stem, affix)
+
+    form = stem + affix
+
+    affix_annotation = form.remove_annotation(VerbAffix, raise_if_absent=False)
+    if affix_annotation is not None:
+        affix_start = affix_annotation.start
+    else:
+        affix_start = len(stem.text)
+
+    form.annotate(VerbAffix, affix_start, len(form.text))
+
+    if len(spec.subjects) > 0:
+        subject_annotation = form.remove_annotation(VerbSubject, raise_if_absent=False)
+        if subject_annotation is not None:
+            subject_start = subject_annotation.start
+        else:
+            subject_start = len(stem.text)
+        if spec.subject_len is not None:
+            assert spec.subject_len > 0
+            subject_start = len(form.text) - spec.subject_len
+
+        form.annotate(VerbSubject, subject_start, len(form.text))
+
+    if spec.variant is not None:
+        form.annotate(VerbVariant, len(stem.text), len(stem.text) + 2)
+
+    annotate_diff(SpellingChange, form, simple_form)
+
+    form.remove_annotations(Phoneme)
+    return form
+
+
+def _adapt_affix(stem: AnnotatedString, affix: str) -> str:
+    if stem.text == "" or len(affix) < 2:
+        return affix
+
+    stem_phonemes = stem.get_annotations(Phoneme)
+
+    if affix[0] == "i":
+        if affix[1] in VOWELS:
+            if stem_phonemes[-1].phoneme_kind in (
+                PhonemeKind.STRONG_VOWEL,
+                PhonemeKind.WEAK_VOWEL,
+            ):
+                return "y" + affix[1:]
+            elif stem_phonemes[-1].phoneme in ("y", "ñ"):
+                return affix[1:]
+        elif stem_phonemes[-1].phoneme_kind is PhonemeKind.STRONG_VOWEL:
+            return "í" + affix[1:]
+
+    return affix
+
+
+def _adapt_stem(stem: AnnotatedString, affix: str) -> AnnotatedString:
+    if stem.text == "" or affix == "":
+        return stem
+
+    stem_phonemes = stem.get_annotations(Phoneme)
+
+    match (
+        stem_phonemes[-1].phoneme,
+        stem_phonemes[-1].text,
+        affix[0] in SOFT_VOWELS,
+    ):
+        case "u", "u", True:
+            if len(stem_phonemes) >= 2 and stem_phonemes[-2].phoneme == "g":
+                return stem[:-1] + "ü"
+        case "u", "ü", False:
+            return stem[:-1] + "u"
+        case "g", "g", True:
+            return stem[:-1] + "gu"
+        case "g", "gu", False:
+            return stem[:-2] + "g"
+        case "k", "c", True:
+            return stem[:-1] + "qu"
+        case "k", "qu", False:
+            return stem[:-2] + "c"
+        case "s", "z", True:
+            return stem[:-1] + "c"
+        case "s", "c", False:
+            return stem[:-1] + "z"
+        case "j", "g", False:
+            return stem[:-1] + "j"
+
+    return stem
 
 
 @dataclass(frozen=True)
 class _VerbFormSpecKey:
     ending: str
     tense: Tense
-    subject: Subject | None
+    subject: Subject
     variant: Variant | None
 
 
 @dataclass(frozen=True)
 class _VerbFormSpec:
+    subjects: tuple[Subject, ...]
+    variant: Variant | None
     from_tense: Tense | None
     from_subject: Subject | None
-    truncate_str: str
+    truncate_len: int
+    truncate_pattern: re.Pattern | None
     pre_affix_stress: bool
     affix: str
     subject_len: int | None
@@ -243,32 +241,41 @@ class _VerbFormSpec:
 
 def _load_regular_conjugation_lookup() -> dict[_VerbFormSpecKey, _VerbFormSpec]:
     result: dict[_VerbFormSpecKey, _VerbFormSpec] = {}
-    conjugation_data_path = resources_path.joinpath("regular_conjugation.csv")
+    conjugation_data_path = resources_path / "regular_conjugation.csv"
     with conjugation_data_path.open("r", newline="") as f:
         reader = csv.DictReader(f, dialect=csv.unix_dialect)
         for row in reader:
+            tense = Tense(row["tense"])
+            subjects = (
+                [Subject(x) for x in row["subjects"].split(";")]
+                if row["subjects"]
+                else []
+            )
+            variant = Variant(row["variant"]) if row["variant"] else None
+            spec = _VerbFormSpec(
+                subjects=tuple(subjects),
+                variant=variant,
+                from_tense=Tense(row["from_tense"]) if row["from_tense"] else None,
+                from_subject=Subject(row["from_subject"])
+                if row["from_subject"]
+                else None,
+                truncate_len=len(row["truncate_str"]),
+                truncate_pattern=re.compile(row["truncate_str"].replace("_", ".") + "$")
+                if row["truncate_str"]
+                else None,
+                pre_affix_stress=row["pre_affix_stress"] == "1",
+                affix=row["affix"],
+                subject_len=int(row["subject_len"]) if row["subject_len"] else None,
+            )
             for ending in row["endings"].split(";"):
-                for subject in row["subjects"].split(";"):
+                for subject in subjects or [Subject.IMPERSONAL]:
                     key = _VerbFormSpecKey(
                         ending=ending,
-                        tense=Tense(row["tense"]),
-                        subject=Subject(subject) if subject else None,
-                        variant=Variant(row["variant"]) if row["variant"] else None,
+                        tense=tense,
+                        subject=subject,
+                        variant=variant,
                     )
-                    result[key] = _VerbFormSpec(
-                        from_tense=Tense(row["from_tense"])
-                        if row["from_tense"]
-                        else None,
-                        from_subject=Subject(row["from_subject"])
-                        if row["from_subject"]
-                        else None,
-                        truncate_str=row["truncate_str"],
-                        pre_affix_stress=row["pre_affix_stress"] == "1",
-                        affix=row["affix"],
-                        subject_len=int(row["subject_len"])
-                        if row["subject_len"]
-                        else None,
-                    )
+                    result[key] = spec
     return result
 
 
