@@ -12,7 +12,7 @@ class Stress(StringAnnotation):
     pass
 
 
-def annotate_stress(word: AnnotatedString):
+def annotate_stress(word: AnnotatedString) -> None:
     syllables = word.get_annotations(Syllable)
     if len(syllables) == 0:
         return
@@ -33,7 +33,7 @@ def _get_stressed_syllable(syllables: list[Syllable]) -> Syllable:
 def _get_normal_stressed_syllable(syllables: list[Syllable]) -> Syllable:
     end_syllable = syllables[-1]
 
-    if len(syllables) >= 2:
+    if len(syllables) >= 2:  # noqa: PLR2004
         end_syllable_sounds = end_syllable.string.get_annotations(
             Phoneme, end_syllable.start, end_syllable.stop
         )

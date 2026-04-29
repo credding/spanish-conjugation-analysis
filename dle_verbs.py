@@ -36,7 +36,6 @@ def get_verb(lemma_tag: LemmaTag) -> DLEVerb:
 
         conjug_c = _CONJUG_C_PATTERN.search(tag.get_text())
         if conjug_c is not None:
-            for model_verb in conjug_c.group(1).split(" o c. "):
-                models.append(VerbTag(model_verb))
+            models.extend(VerbTag(x) for x in conjug_c.group(1).split(" o c. "))
 
     return DLEVerb(page.word, is_model, models)

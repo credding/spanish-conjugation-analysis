@@ -18,12 +18,9 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
-def initialize():
+def initialize() -> None:
     if _corpes_db_path.is_file():
-        with (
-            connect() as conn,
-            closing(conn.cursor()) as cur,
-        ):
+        with connect() as conn, closing(conn.cursor()) as cur:
             cur.execute("SELECT EXISTS(SELECT 1 FROM sqlite_master);")
             if cur.fetchone()[0]:
                 return
@@ -71,11 +68,7 @@ def initialize():
             cur,
             table_name="freq_forms",
             tsv_name="frecuencia_formas_ortograficas_1_4.txt",
-            fieldnames=[
-                "form",
-                "freq",
-                "freq_norm",
-            ],
+            fieldnames=["form", "freq", "freq_norm"],
             skip_lines=2,
         )
 
@@ -99,7 +92,7 @@ def initialize():
         conn.commit()
 
 
-class _corpes_tsv_dialect(csv.Dialect):
+class _corpes_tsv_dialect(csv.Dialect):  # noqa: N801
     delimiter = "\t"
     skipinitialspace = True
     lineterminator = "\r\n"
@@ -117,17 +110,16 @@ def _load_table_tsv(
 
     column_names_clause = ", ".join(column_names)
     values_clause = ", ".join(f":{x}" for x in column_names)
-    insert_statement = f"INSERT INTO {table_name} (id, {column_names_clause}) VALUES (:id, {values_clause});"
+    insert_statement = (
+        f"INSERT INTO {table_name} (id, {column_names_clause}) "  # noqa: S608
+        f"VALUES (:id, {values_clause});"
+    )
 
     tsv_path = _corpes_data_path / tsv_name
     with tsv_path.open("r", newline="") as f:
         for _ in range(skip_lines):
             next(f)
-        reader = csv.DictReader(
-            f,
-            fieldnames=fieldnames,
-            dialect=_corpes_tsv_dialect,
-        )
+        reader = csv.DictReader(f, fieldnames=fieldnames, dialect=_corpes_tsv_dialect)
         for row in reader:
             try:
                 cur.execute(insert_statement, {"id": reader.line_num, **row})

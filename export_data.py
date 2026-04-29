@@ -1,9 +1,7 @@
-from typing import Any
+from typing import TYPE_CHECKING
 
-from annotated_string import StringAnnotation
 from conjugation import SpellingChange, VerbAffix, VerbSubject, VerbVariant
 from conjugation_analysis import IrregularConstruction, IrregularForm
-from diff_analysis import DiffAnnotation
 from export_model import (
     ExportData,
     ExportElement,
@@ -14,26 +12,24 @@ from export_model import (
     ExportVerbFormId,
     FormChange,
 )
-from grammar_model import (
-    Element,
-    Lemma,
-    PartOfSpeech,
-    Regularity,
-    Verb,
-    VerbForm,
-)
+from grammar_model import Element, Lemma, PartOfSpeech, Regularity, Verb, VerbForm
 from run_context import element_index, lemma_index
 from spelling_analysis import Homonym
 from stress_analysis import Stress
 from syllable_analysis import Syllable
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable
+
+    from annotated_string import StringAnnotation
+    from diff_analysis import DiffAnnotation
 
 
 def export_verb_forms_and_homonyms() -> ExportData:
     export_lemmas = [
         x.value
         for x in set.union(
-            lemma_index.lookup(PartOfSpeech.VERB),
-            lemma_index.lookup(Homonym.HOMONYM),
+            lemma_index.lookup(PartOfSpeech.VERB), lemma_index.lookup(Homonym.HOMONYM)
         )
     ]
     export_lemmas.sort(key=_lemma_sort)
@@ -55,16 +51,8 @@ def export_verb_forms_and_homonyms() -> ExportData:
 
 def _lemma_sort(lemma: Lemma) -> tuple:
     if isinstance(lemma, Verb):
-        return (
-            -lemma.freq_adj,
-            lemma.base_form,
-            lemma.part_of_speech,
-        )
-    return (
-        -lemma.freq_adj,
-        lemma.base_form,
-        lemma.part_of_speech,
-    )
+        return (-lemma.freq_adj, lemma.base_form, lemma.part_of_speech)
+    return (-lemma.freq_adj, lemma.base_form, lemma.part_of_speech)
 
 
 def _element_sort(element: Element) -> tuple:
@@ -81,10 +69,7 @@ def _element_sort(element: Element) -> tuple:
             element.preference,
             element.form,
         )
-    return (
-        *_lemma_sort(element.lemma),
-        element.form,
-    )
+    return (*_lemma_sort(element.lemma), element.form)
 
 
 def _map_lemma(lemma: Lemma) -> ExportLemma:
@@ -185,16 +170,14 @@ def _map_stress_position(element: Element) -> int:
 
 
 def _map_annotation_range(
-    element: Element,
-    annotation_type: type[StringAnnotation],
+    element: Element, annotation_type: type[StringAnnotation]
 ) -> tuple[int, int]:
     annotation = element.annotated_form.get_annotation(annotation_type)
     return annotation.start, annotation.stop
 
 
 def _map_annotation_range_or_none(
-    element: Element,
-    annotation_type: type[StringAnnotation],
+    element: Element, annotation_type: type[StringAnnotation]
 ) -> tuple[int, int] | None:
     annotation = element.annotated_form.get_annotation_or_none(annotation_type)
     if annotation is None:
@@ -209,30 +192,31 @@ def _map_diff_annotation(
     if annotation is None:
         return None
     return FormChange(
-        range=(annotation.start, annotation.stop),
-        from_form=annotation.diff_string,
+        range=(annotation.start, annotation.stop), from_form=annotation.diff_string
     )
 
 
-def _map_related_elements(element: Element, relation: Any) -> list[ExportElementId]:
+def _map_related_elements(
+    element: Element, relation: Hashable
+) -> list[ExportElementId]:
     tagged_element = element_index[element.tag]
     return sorted(
         _map_element_id(x.value) for x in tagged_element.get_related(relation)
     )
 
 
-def _map_related_verb_form(element: Element, relation: Any) -> ExportVerbFormId | None:
+def _map_related_verb_form(
+    element: Element, relation: Hashable
+) -> ExportVerbFormId | None:
     tagged_element = element_index[element.tag]
     related_elements = tagged_element.get_related(relation)
     if len(related_elements) == 0:
         return None
     if len(related_elements) > 1:
-        raise ValueError(
-            f"multiple elements related by {relation} found for {tagged_element}"
-        )
+        msg = (f"multiple elements related by {relation} found for {tagged_element}",)
+        raise ValueError(msg)
     related_form = related_elements.pop().value
     if not isinstance(related_form, VerbForm):
-        raise ValueError(
-            f"element related by {relation} is not a verb form: {related_form}"
-        )
+        msg = (f"element related by {relation} is not a verb form: {related_form}",)
+        raise TypeError(msg)
     return _map_verb_form_id(related_form)

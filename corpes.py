@@ -2,14 +2,7 @@ from contextlib import closing
 from dataclasses import dataclass
 
 import corpes_db
-from grammar_model import (
-    BaseElement,
-    BaseLemma,
-    Element,
-    Lemma,
-    LemmaTag,
-    PartOfSpeech,
-)
+from grammar_model import BaseElement, BaseLemma, Element, Lemma, LemmaTag, PartOfSpeech
 
 _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "A": PartOfSpeech.ADJECTIVE,
@@ -51,7 +44,7 @@ class FreqElement(BaseElement):
 
 
 class CORPES:
-    def __init__(self):
+    def __init__(self) -> None:
         corpes_db.initialize()
 
         self._conn = corpes_db.connect()
@@ -59,7 +52,8 @@ class CORPES:
     def get_top_lemmas_by_freq_adj(self, n: int = -1) -> list[FreqLemma]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT lemma, class, freq_adj FROM dp_lemmas ORDER BY freq_adj DESC LIMIT ?;",
+                "SELECT lemma, class, freq_adj FROM dp_lemmas "
+                "ORDER BY freq_adj DESC LIMIT ?;",
                 (n,),
             )
             return [_map_lemma(x) for x in cur]
@@ -67,7 +61,8 @@ class CORPES:
     def get_top_elements(self, lemma_tag: LemmaTag) -> list[FreqElement]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT form, lemma, tag FROM freq_elements WHERE lemma = ? AND tag LIKE ? || '%' ORDER BY id; ",
+                "SELECT form, lemma, tag FROM freq_elements "
+                "WHERE lemma = ? AND tag LIKE ? || '%' ORDER BY id; ",
                 (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
             )
             return [_map_element(x) for x in cur]
@@ -75,7 +70,8 @@ class CORPES:
     def get_lemma(self, lemma_tag: LemmaTag) -> FreqLemma:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT lemma, class, freq_adj FROM dp_lemmas WHERE (lemma, class) = (?, ?);",
+                "SELECT lemma, class, freq_adj FROM dp_lemmas "
+                "WHERE (lemma, class) = (?, ?);",
                 (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
             )
             return _map_lemma(cur.fetchone())

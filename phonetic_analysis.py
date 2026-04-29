@@ -15,7 +15,7 @@ class Phoneme(StringAnnotation):
     phoneme_kind: PhonemeKind
     phoneme: str
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{type(self).__name__}("
             f"{self.string.text[: self.start]}"
@@ -53,12 +53,9 @@ _COMPOUND_CONSONANT_PHONEMES = {"ch": "ch", "ll": "y", "rr": "rr"}
 _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 
-def annotate_phonemes(word: AnnotatedString):
-    phonemes: list[Phoneme] = []
-
+def annotate_phonemes(word: AnnotatedString) -> None:
     phoneme = _annotate_first_phoneme(word)
     while phoneme:
-        phonemes.append(phoneme)
         phoneme = _annotate_next_phoneme(word, phoneme.stop)
 
 
@@ -123,7 +120,7 @@ def _annotate_next_simple_phoneme(word: AnnotatedString, start: int) -> Phoneme 
 
 def _annotate_vowel_phoneme(
     word: AnnotatedString, start: int, stop: int, grapheme: str
-):
+) -> Phoneme:
     phoneme_kind = (
         PhonemeKind.STRONG_VOWEL
         if grapheme in STRONG_VOWELS

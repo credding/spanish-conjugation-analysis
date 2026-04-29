@@ -24,7 +24,7 @@ class DLEPage:
 
 
 class DLEWeb:
-    def __init__(self):
+    def __init__(self) -> None:
         _dle_pages_dir.mkdir(parents=True, exist_ok=True)
 
         self._session = curl_cffi.Session(impersonate="firefox", raise_for_status=True)
@@ -51,7 +51,7 @@ class DLEWeb:
 
     def _get_page_from_web(self, word: str) -> DLEPage:
         request_url = f"https://dle.rae.es/{quote(word)}"
-        _logger.info(f"get {word} {request_url}")
+        _logger.info("get %s %s", word, request_url)
 
         response = self._session.get(request_url)
         response_word = unquote(PurePosixPath(urlsplit(response.url).path).parts[-1])

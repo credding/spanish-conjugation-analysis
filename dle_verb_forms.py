@@ -1,25 +1,19 @@
 import logging
 import re
 from dataclasses import dataclass
-from typing import Iterable, cast
+from typing import TYPE_CHECKING, cast
 
-from bs4 import Tag
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
-from grammar_model import (
-    BaseVerbForm,
-    Subject,
-    Tense,
-    Variant,
-    Verb,
-    VerbForm,
-    VerbTag,
-)
+    from bs4 import Tag
+
+from grammar_model import BaseVerbForm, Subject, Tense, Variant, Verb, VerbForm, VerbTag
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
 from run_context import dle, memory
 
 _logger = logging.getLogger(__name__)
 
-# fmt: off
 _TENSES = {
     ("Formas-no-personales", "Infinitivo"): Tense.INFINITIVE,
     ("Formas-no-personales", "Gerundio"): Tense.GERUND,
@@ -34,9 +28,9 @@ _TENSES = {
     ("Subjuntivo", "Futuro simple / Futuro"): Tense.SUBJUNCTIVE_FUTURE,
     ("Imperativo", "Imperativo"): Tense.IMPERATIVE,
 }
-# fmt: on
 
 # fmt: off
+# ruff: disable[E501]
 _SUBJECT_GROUPS = {
     (Tense.PRESENT, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
     (Tense.PRESENT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
@@ -62,6 +56,7 @@ _SUBJECT_GROUPS = {
     (Tense.SUBJUNCTIVE_FUTURE, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
     (Tense.SUBJUNCTIVE_FUTURE, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
 }
+# ruff: enable[E501]
 # fmt: on
 
 _REDUNDANT_SUBJECTS = {
@@ -117,14 +112,16 @@ def get_verb_forms(verb_tag: VerbTag) -> list[DLEVerbForm]:
 
     conjugation_anchor = page.document.find(attrs={"name": "conjugacion"})
     if conjugation_anchor is None:
-        raise Exception("missing conjugation section")
+        msg = "missing conjugation section"
+        raise ValueError(msg)
 
     conjugation_section = conjugation_anchor.find_parent("section")
     if conjugation_section is None:
-        raise Exception("missing conjugation section")
+        msg = "missing conjugation section"
+        raise ValueError(msg)
 
     for mood_group in conjugation_section.find_all(class_="c-collapse"):
-        mood_id: str = cast(str, mood_group["id"])
+        mood_id: str = cast("str", mood_group["id"])
         for table_tag in mood_group.find_all("table"):
             verb_forms.extend(_parse_conjugation_table(verb_tag, mood_id, table_tag))
 
@@ -146,38 +143,49 @@ def _parse_conjugation_table(
             if cell_tag in seen:
                 continue
             seen.add(cell_tag)
+
             match cell_tag.name:
                 case "th":
                     header_text = cell_tag.get_text()
-                    col_headers[col_idx] = header_text
-                    row_header = header_text
+                    if header_text != "":
+                        col_headers[col_idx] = header_text
+                        row_header = header_text
 
                 case "td":
-                    tense_name = col_headers.get(col_idx)
-                    if tense_name is None:
-                        continue
+                    col_header = col_headers.get(col_idx)
+                    if col_header is not None:
+                        yield from _parse_conjugation_cell(
+                            verb_tag,
+                            mood_id,
+                            col_header,
+                            row_header,
+                            cell_tag.get_text(),
+                        )
 
-                    tense = _TENSES.get((mood_id, tense_name))
-                    if tense is None:
-                        continue
 
-                    form_text = cell_tag.get_text()
-                    if row_header is None or row_header == "":
-                        for form in _parse_form(
-                            verb_tag, tense, Subject.IMPERSONAL, form_text
-                        ):
-                            yield form
-                        continue
+def _parse_conjugation_cell(
+    verb_tag: VerbTag,
+    mood_id: str,
+    col_header: str,
+    row_header: str | None,
+    cell_text: str,
+) -> Iterable[DLEVerbForm]:
+    tense = _TENSES.get((mood_id, col_header))
+    if tense is None:
+        return
 
-                    subjects = [Subject(x) for x in row_header.split(" / ")]
-                    subject_forms = form_text.split(" / ")
+    if row_header is None:
+        subjects = [Subject.IMPERSONAL]
+    else:
+        subjects = [Subject(x) for x in row_header.split(" / ")]
 
-                    for _ in range(len(subject_forms), len(subjects)):
-                        subject_forms.append(subject_forms[0])
+    subject_forms = cell_text.split(" / ")
 
-                    for subject, subject_form in zip(subjects, subject_forms):
-                        for form in _parse_form(verb_tag, tense, subject, subject_form):
-                            yield form
+    for _ in range(len(subject_forms), len(subjects)):
+        subject_forms.append(subject_forms[0])
+
+    for subject, subject_form in zip(subjects, subject_forms, strict=True):
+        yield from _parse_form(verb_tag, tense, subject, subject_form)
 
 
 def _normalize_table(table: Tag) -> list[list[Tag]]:
@@ -189,8 +197,8 @@ def _normalize_table(table: Tag) -> list[list[Tag]]:
         col_pos = 0
 
         for cell_tag in row_tag.find_all(["th", "td"]):
-            rowspan = int(cast(str, cell_tag.get("rowspan", "1")))
-            colspan = int(cast(str, cell_tag.get("colspan", "1")))
+            rowspan = int(cast("str", cell_tag.get("rowspan", "1")))
+            colspan = int(cast("str", cell_tag.get("colspan", "1")))
 
             for cell in result[row_pos][col_pos:]:
                 if cell is None:
@@ -211,20 +219,18 @@ def _normalize_table(table: Tag) -> list[list[Tag]]:
 
 
 def _parse_form(
-    verb_tag: VerbTag, tense: Tense, subject: Subject, form: str
+    verb_tag: VerbTag, tense: Tense, subject: Subject, forms_text: str
 ) -> Iterable[DLEVerbForm]:
-    for i, form in enumerate(_FORM_DELIM_PATTERN.split(form)):
-        form_parts = _FORM_PATTERN.fullmatch(form)
+    for i, form_text in enumerate(_FORM_DELIM_PATTERN.split(forms_text)):
+        form_parts = _FORM_PATTERN.fullmatch(form_text)
 
         if form_parts is None:
-            raise Exception(f"could not parse verb form {form}")
+            msg = f"could not parse verb form {form_text}"
+            raise ValueError(msg)
 
         if (tense, subject) not in _REDUNDANT_SUBJECTS:
             if tense == Tense.SUBJUNCTIVE_PAST:
-                if i % 2 == 0:
-                    variant = Variant.RA
-                else:
-                    variant = Variant.SE
+                variant = Variant.RA if i % 2 == 0 else Variant.SE
                 preference = i // 2
             else:
                 variant = None
@@ -252,15 +258,17 @@ def _remove_reflexive_pronoun(
     pronoun = _REFLEXIVE_PRONOUNS[subject]
     match tense, subject:
         case Tense.INFINITIVE, _:
-            return form.removesuffix(pronoun)
+            form = form.removesuffix(pronoun)
         case Tense.PARTICIPLE, _:
-            return form
+            pass
         case Tense.IMPERATIVE, Subject.VOS:
             form = form.removesuffix(pronoun)
-            return form[:-1] + form[-1].translate(TRANSLATE_ADD_STRESS)
+            form = form[:-1] + form[-1].translate(TRANSLATE_ADD_STRESS)
         case Tense.IMPERATIVE, Subject.VOSOTROS:
-            return form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS) + "d"
+            form = form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS) + "d"
         case Tense.GERUND | Tense.IMPERATIVE, _:
-            return form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS)
+            form = form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS)
         case _:
-            return form.removeprefix(f"{pronoun} ")
+            form = form.removeprefix(f"{pronoun} ")
+
+    return form

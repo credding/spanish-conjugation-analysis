@@ -2,6 +2,7 @@ import csv
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from annotated_string import AnnotatedString, StringAnnotation
 from diff_analysis import DiffAnnotation, annotate_diff
@@ -23,7 +24,9 @@ from phonetic_analysis import (
     annotate_phonemes,
 )
 from resources import resources_path
-from tagged_index import TaggedIndex
+
+if TYPE_CHECKING:
+    from tagged_index import TaggedIndex
 
 
 @dataclass(repr=False)
@@ -49,22 +52,14 @@ class SpellingChange(DiffAnnotation):
 class VerbConjugator(ABC):
     @abstractmethod
     def conjugate(
-        self,
-        verb_tag: VerbTag,
-        tense: Tense,
-        subject: Subject,
-        variant: Variant | None,
+        self, verb_tag: VerbTag, tense: Tense, subject: Subject, variant: Variant | None
     ) -> list[AnnotatedString]:
         pass
 
 
 class RegularFormConjugator(VerbConjugator):
     def conjugate(
-        self,
-        verb_tag: VerbTag,
-        tense: Tense,
-        subject: Subject,
-        variant: Variant | None,
+        self, verb_tag: VerbTag, tense: Tense, subject: Subject, variant: Variant | None
     ) -> list[AnnotatedString]:
         spec_key = _VerbFormSpecKey(verb_tag.ending, tense, subject, variant)
         spec = _REGULAR_CONJUGATION_LOOKUP.get(spec_key)
@@ -91,7 +86,7 @@ class RegularFormConjugator(VerbConjugator):
 
 
 class RegularConstructionConjugator(RegularFormConjugator):
-    def __init__(self, index: TaggedIndex[ElementTag, Element]):
+    def __init__(self, index: TaggedIndex[ElementTag, Element]) -> None:
         self._index = index
 
     def _get_from_form_candidates(
@@ -119,7 +114,7 @@ def _conjugate_form(
     annotate_phonemes(stem)
 
     if spec.truncate_len > 0:
-        assert spec.truncate_pattern is not None
+        assert spec.truncate_pattern is not None  # noqa: S101
         if not spec.truncate_pattern.search(stem.text):
             return None
         stem = stem[: -spec.truncate_len]
@@ -152,7 +147,7 @@ def _conjugate_form(
         else:
             subject_start = len(stem.text)
         if spec.subject_len is not None:
-            assert spec.subject_len > 0
+            assert spec.subject_len > 0  # noqa: S101
             subject_start = len(form.text) - spec.subject_len
 
         form.annotate(VerbSubject, subject_start, len(form.text))
@@ -167,7 +162,7 @@ def _conjugate_form(
 
 
 def _adapt_affix(stem: AnnotatedString, affix: str) -> str:
-    if stem.text == "" or len(affix) < 2:
+    if stem.text == "" or len(affix) < 2:  # noqa: PLR2004
         return affix
 
     stem_phonemes = stem.get_annotations(Phoneme)
@@ -179,7 +174,7 @@ def _adapt_affix(stem: AnnotatedString, affix: str) -> str:
                 PhonemeKind.WEAK_VOWEL,
             ):
                 return "y" + affix[1:]
-            elif stem_phonemes[-1].phoneme in ("y", "ñ"):
+            if stem_phonemes[-1].phoneme in "yñ":
                 return affix[1:]
         elif stem_phonemes[-1].phoneme_kind is PhonemeKind.STRONG_VOWEL:
             return "í" + affix[1:]
@@ -191,32 +186,45 @@ def _adapt_stem(stem: AnnotatedString, affix: str) -> AnnotatedString:
     if stem.text == "" or affix == "":
         return stem
 
-    stem_phonemes = stem.get_annotations(Phoneme)
+    if affix[0] in SOFT_VOWELS:
+        return _adapt_stem_soft_vowel(stem)
 
-    match (
-        stem_phonemes[-1].phoneme,
-        stem_phonemes[-1].text,
-        affix[0] in SOFT_VOWELS,
-    ):
-        case "u", "u", True:
-            if len(stem_phonemes) >= 2 and stem_phonemes[-2].phoneme == "g":
-                return stem[:-1] + "ü"
-        case "u", "ü", False:
-            return stem[:-1] + "u"
-        case "g", "g", True:
-            return stem[:-1] + "gu"
-        case "g", "gu", False:
-            return stem[:-2] + "g"
-        case "k", "c", True:
-            return stem[:-1] + "qu"
-        case "k", "qu", False:
-            return stem[:-2] + "c"
-        case "s", "z", True:
-            return stem[:-1] + "c"
-        case "s", "c", False:
-            return stem[:-1] + "z"
-        case "j", "g", False:
-            return stem[:-1] + "j"
+    return _adapt_stem_to_hard_vowel_consonant(stem)
+
+
+def _adapt_stem_soft_vowel(stem: AnnotatedString) -> AnnotatedString:
+    stem_phonemes = stem.get_annotations(Phoneme)
+    last_phoneme = stem_phonemes[-1]
+
+    match (last_phoneme.phoneme, last_phoneme.text):
+        case "u", "u":
+            if len(stem_phonemes) >= 2 and stem_phonemes[-2].phoneme == "g":  # noqa: PLR2004
+                stem = stem[:-1] + "ü"
+        case "g", "g":
+            stem = stem[:-1] + "gu"
+        case "k", "c":
+            stem = stem[:-1] + "qu"
+        case "s", "z":
+            stem = stem[:-1] + "c"
+
+    return stem
+
+
+def _adapt_stem_to_hard_vowel_consonant(stem: AnnotatedString) -> AnnotatedString:
+    stem_phonemes = stem.get_annotations(Phoneme)
+    last_phoneme = stem_phonemes[-1]
+
+    match (last_phoneme.phoneme, last_phoneme.text):
+        case "u", "ü":
+            stem = stem[:-1] + "u"
+        case "g", "gu":
+            stem = stem[:-2] + "g"
+        case "k", "qu":
+            stem = stem[:-2] + "c"
+        case "s", "c":
+            stem = stem[:-1] + "z"
+        case "j", "g":
+            stem = stem[:-1] + "j"
 
     return stem
 
@@ -273,10 +281,7 @@ def _load_regular_conjugation_lookup() -> dict[_VerbFormSpecKey, _VerbFormSpec]:
             for ending in row["endings"].split(";"):
                 for subject in subjects or [Subject.IMPERSONAL]:
                     key = _VerbFormSpecKey(
-                        ending=ending,
-                        tense=tense,
-                        subject=subject,
-                        variant=variant,
+                        ending=ending, tense=tense, subject=subject, variant=variant
                     )
                     result[key] = spec
     return result

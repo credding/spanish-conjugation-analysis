@@ -1,8 +1,11 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Callable, Concatenate
+from typing import TYPE_CHECKING, Concatenate
 
 from annotated_string import AnnotatedString, StringAnnotation
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass(repr=False)
@@ -11,13 +14,17 @@ class DiffAnnotation(StringAnnotation, ABC):
 
     @property
     def diff_string(self) -> str:
-        return f"{self.string.text[: self.start]}{self.diff_text}{self.string.text[self.stop :]}"
+        return (
+            f"{self.string.text[: self.start]}"
+            f"{self.diff_text}"
+            f"{self.string.text[self.stop :]}"
+        )
 
     @property
-    def diff_stop(self):
+    def diff_stop(self) -> int:
         return self.stop - (len(self.text) - len(self.diff_text))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{type(self).__name__}("
             f"{self.string.text[: self.start]}"

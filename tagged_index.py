@@ -1,29 +1,32 @@
 from collections import defaultdict
 from dataclasses import InitVar, dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable
 
 
 @dataclass(frozen=True, slots=True)
 class Relationship:
-    tag: Any
-    key: Any
+    tag: Hashable
+    key: Hashable
 
 
 @dataclass(eq=False)
-class TaggedItem[K, V]:
+class TaggedItem[K: Hashable, V]:
     index: InitVar[TaggedIndex]
     key: K
     value: V
 
-    tags: set[Any] = field(default_factory=set, init=False)
+    tags: set[Hashable] = field(default_factory=set, init=False)
 
-    def __post_init__(self, index: TaggedIndex[Any, Any]):
+    def __post_init__(self, index: TaggedIndex[Any, Any]) -> None:
         self._index = index
 
-    def tag(self, *tags: Any):
+    def tag(self, *tags: Hashable) -> None:
         self.tags.update(tags)
         for tag in tags:
-            self._index._lookup[tag].add(self)
+            self._index._lookup[tag].add(self)  # noqa: SLF001
 
     def get_tags[T: Any](self, tag_type: type[T]) -> set[T]:
         return {x for x in self.tags if isinstance(x, tag_type)}
@@ -31,28 +34,28 @@ class TaggedItem[K, V]:
     def get_tag_or_none[T: Any](self, tag_type: type[T]) -> T | None:
         tags = self.get_tags(tag_type)
         if len(tags) > 1:
-            raise ValueError(
-                f"multiple tags of type {tag_type} found for item {self.value}"
-            )
+            msg = f"multiple tags of type {tag_type} found for item {self.value}"
+            raise ValueError(msg)
         return tags.pop() if len(tags) > 0 else None
 
     def get_tag[T: Any](self, tag_type: type[T]) -> T:
         tag = self.get_tag_or_none(tag_type)
         if tag is None:
-            raise KeyError(f"no tag of type {tag_type} found for item {self.value}")
+            msg = f"no tag of type {tag_type} found for item {self.value}"
+            raise KeyError(msg)
         return tag
 
-    def relate_to(self, other: TaggedItem[K, V], tag: Any):
+    def relate_to(self, other: TaggedItem[K, V], tag: Hashable) -> None:
         other.tag(Relationship(tag, self.key))
 
-    def get_related(self, tag: Any) -> set[TaggedItem[K, V]]:
+    def get_related(self, tag: Hashable) -> set[TaggedItem[K, V]]:
         return self._index.lookup(Relationship(tag, self.key))
 
 
-class TaggedIndex[K, V]:
-    def __init__(self):
-        self._items: dict[K, TaggedItem[K, V]] = dict()
-        self._lookup: dict[Any, set[TaggedItem[K, V]]] = defaultdict(set)
+class TaggedIndex[K: Hashable, V]:
+    def __init__(self) -> None:
+        self._items: dict[K, TaggedItem[K, V]] = {}
+        self._lookup: dict[Hashable, set[TaggedItem[K, V]]] = defaultdict(set)
 
     def __getitem__(self, key: K) -> TaggedItem[K, V]:
         return self._items[key]
@@ -66,7 +69,7 @@ class TaggedIndex[K, V]:
         self._items[key] = entry
         return entry
 
-    def lookup(self, *tags: Any) -> set[TaggedItem[K, V]]:
+    def lookup(self, *tags: Hashable) -> set[TaggedItem[K, V]]:
         if len(tags) == 0:
             return set(self._items.values())
         return set.intersection(*(self._lookup[tag] for tag in tags))

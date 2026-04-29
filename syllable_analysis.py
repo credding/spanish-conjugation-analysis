@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from phonetic_analysis import Phoneme, PhonemeKind
 from annotated_string import AnnotatedString, StringAnnotation
+from phonetic_analysis import Phoneme, PhonemeKind
 
 
 @dataclass(repr=False)
@@ -10,15 +10,17 @@ class Syllable(StringAnnotation):
     pass
 
 
-def annotate_syllables(word: AnnotatedString):
+def annotate_syllables(word: AnnotatedString) -> None:
     """
-    Primary reference: [Syllabification Rules for Spanish (University of Pennsylvania; Mena, C.)](https://catalog.ldc.upenn.edu/docs/LDC2019S07/Syllabification_Rules_in_Spanish.pdf)
+    Primary reference: [Syllabification Rules for Spanish (University of Pennsylvania;
+    Mena, C.)](https://catalog.ldc.upenn.edu/docs/LDC2019S07/Syllabification_Rules_in_Spanish.pdf)
 
     Supporting references:
     - [Syllables in Spanish: A detailed guide to Spanish syllabification rules (BaseLang)](https://baselang.com/blog/pronunciation/spanish-syllables/),
     - [Spanish Syllables and Syllabification Rules (SpanishDictionary.com)](https://www.spanishdict.com/guide/spanish-syllables-and-syllabification-rules)
 
-    This implementation yields incorrect syllabification for Spanish words borrowed from Nahuatl ('tl' is not considered as an unbreakable phoneme).
+    This implementation yields incorrect syllabification for Spanish words borrowed
+    from Nahuatl ('tl' is not considered as an unbreakable phoneme).
     """
     state = _SyllableAnalysisState()
     for phoneme in word.get_annotations(Phoneme):
@@ -41,12 +43,11 @@ class _SyllablePart(Enum):
 
 
 class _SyllableAnalysisState:
-    def __init__(self):
-        self._syllables: list[Syllable] = []
+    def __init__(self) -> None:
         self._syllable_part: _SyllablePart = _SyllablePart.START_CONSONANT
         self._syllable_phonemes: list[Phoneme] = []
 
-    def evaluate_phoneme(self, phoneme: Phoneme):
+    def evaluate_phoneme(self, phoneme: Phoneme) -> None:
         match self._syllable_part:
             case _SyllablePart.START_CONSONANT:
                 self._evaluate_at_start_consonant(phoneme)
@@ -74,11 +75,11 @@ class _SyllableAnalysisState:
 
         self._syllable_phonemes.append(phoneme)
 
-    def evaluate_end(self):
+    def evaluate_end(self) -> None:
         if len(self._syllable_phonemes) > 0:
             self._annotate_syllable()
 
-    def _evaluate_at_start_consonant(self, phoneme: Phoneme):
+    def _evaluate_at_start_consonant(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._syllable_part = _SyllablePart.START_CONSONANT
@@ -87,7 +88,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.WEAK_VOWEL
 
-    def _evaluate_at_end_consonant(self, phoneme: Phoneme):
+    def _evaluate_at_end_consonant(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._annotate_syllable()
@@ -99,23 +100,21 @@ class _SyllableAnalysisState:
                 self._add_syllable_without_previous_phoneme()
                 self._syllable_part = _SyllablePart.WEAK_VOWEL
 
-    def _evaluate_at_end_consonant_labiodental_velar(self, phoneme: Phoneme):
+    def _evaluate_at_end_consonant_labiodental_velar(self, phoneme: Phoneme) -> None:
         if phoneme.phoneme_kind == PhonemeKind.CONSONANT and phoneme.phoneme in "lr":
             self._add_syllable_without_previous_phoneme()
             self._syllable_part = _SyllablePart.START_CONSONANT
-            return
         else:
             self._evaluate_at_end_consonant(phoneme)
 
-    def _evaluate_at_end_consonant_dental(self, phoneme: Phoneme):
+    def _evaluate_at_end_consonant_dental(self, phoneme: Phoneme) -> None:
         if phoneme.phoneme_kind == PhonemeKind.CONSONANT and phoneme.phoneme == "r":
             self._add_syllable_without_previous_phoneme()
             self._syllable_part = _SyllablePart.START_CONSONANT
-            return
         else:
             self._evaluate_at_end_consonant(phoneme)
 
-    def _evaluate_at_strong_vowel(self, phoneme: Phoneme):
+    def _evaluate_at_strong_vowel(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
@@ -125,7 +124,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.STRONG_WEAK_DIPHTHONG
 
-    def _evaluate_at_weak_vowel(self, phoneme: Phoneme):
+    def _evaluate_at_weak_vowel(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
@@ -134,7 +133,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.WEAK_WEAK_DIPHTHONG
 
-    def _evaluate_at_strong_diphthong(self, phoneme: Phoneme):
+    def _evaluate_at_strong_diphthong(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
@@ -144,7 +143,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.TRIPHTHONG
 
-    def _evaluate_at_weak_diphthong(self, phoneme: Phoneme):
+    def _evaluate_at_weak_diphthong(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
@@ -155,7 +154,7 @@ class _SyllableAnalysisState:
                 self._add_syllable_without_previous_phoneme()
                 self._syllable_part = _SyllablePart.WEAK_WEAK_DIPHTHONG
 
-    def _evaluate_at_triphthong(self, phoneme: Phoneme):
+    def _evaluate_at_triphthong(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
@@ -166,7 +165,7 @@ class _SyllableAnalysisState:
                 self._annotate_syllable()
                 self._syllable_part = _SyllablePart.WEAK_VOWEL
 
-    def _evaluate_end_consonant(self, phoneme: Phoneme):
+    def _evaluate_end_consonant(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme:
             case "b" | "f" | "p":
                 self._syllable_part = _SyllablePart.END_CONSONANT_LABIODENTAL
@@ -177,12 +176,12 @@ class _SyllableAnalysisState:
             case _:
                 self._syllable_part = _SyllablePart.END_CONSONANT
 
-    def _add_syllable_without_previous_phoneme(self):
+    def _add_syllable_without_previous_phoneme(self) -> None:
         previous_phoneme = self._syllable_phonemes.pop()
         self._annotate_syllable()
         self._syllable_phonemes.append(previous_phoneme)
 
-    def _annotate_syllable(self):
+    def _annotate_syllable(self) -> None:
         first_phoneme = self._syllable_phonemes[0]
         last_phoneme = self._syllable_phonemes[-1]
         first_phoneme.string.annotate(Syllable, first_phoneme.start, last_phoneme.stop)

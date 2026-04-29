@@ -22,7 +22,7 @@ from run_context import (
 _logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     index_top_corpes_lemmas()
     index_top_corpes_elements()
 
@@ -48,7 +48,7 @@ def main():
     _logger.info("done")
 
 
-def index_top_corpes_lemmas():
+def index_top_corpes_lemmas() -> None:
     _logger.info("indexing top CORPES lemmas")
 
     top_lemmas = corpes.get_top_lemmas_by_freq_adj(5000)
@@ -66,7 +66,7 @@ def index_top_corpes_lemmas():
         tagged_lemma.tag(*lemma.tags)
 
 
-def index_top_corpes_elements():
+def index_top_corpes_elements() -> None:
     _logger.info("indexing top CORPES elements")
 
     for tagged_lemma in lemma_index.lookup() - lemma_index.lookup(PartOfSpeech.VERB):
@@ -79,14 +79,14 @@ def index_top_corpes_elements():
             tagged_element.tag(*element.tags)
 
 
-def index_dpd_model_verbs():
+def index_dpd_model_verbs() -> None:
     _logger.info("indexing DPD model verbs")
 
     for verb in _index_verb_list("dpd_model_verbs.txt"):
         lemma_index[verb.tag].tag(Regularity.MODEL_VERB)
 
 
-def index_kofi_verbs():
+def index_kofi_verbs() -> None:
     _logger.info("indexing KOFI verbs")
 
     for i, verb in enumerate(_index_verb_list("kofi_verbs.txt")):
@@ -102,7 +102,7 @@ def _index_verb_list(list_name: str) -> list[Verb]:
         dle_verb = get_verb(VerbTag(verb_item))
         tagged_verb = lemma_index.setdefault(dle_verb.tag, dle_verb.as_verb())
 
-        verb = cast(Verb, tagged_verb.value)
+        verb = cast("Verb", tagged_verb.value)
         verb.freq_adj = freq_lemma.freq_adj
         tagged_verb.tag(*verb.tags)
         if dle_verb.is_model:
@@ -113,13 +113,13 @@ def _index_verb_list(list_name: str) -> list[Verb]:
     return result
 
 
-def index_dle_model_verbs():
+def index_dle_model_verbs() -> None:
     _logger.info("indexing DLE model verbs")
 
     model_verbs = {
         m
         for v in lemma_index.lookup(PartOfSpeech.VERB)
-        for m in cast(Verb, v.value).models
+        for m in cast("Verb", v.value).models
     }
     for verb_tag in model_verbs:
         freq_lemma = corpes.get_lemma(verb_tag)
@@ -130,56 +130,60 @@ def index_dle_model_verbs():
         tagged_verb.tag(*verb.tags, Regularity.MODEL_VERB)
 
 
-def index_dle_verb_forms():
+def index_dle_verb_forms() -> None:
     _logger.info("indexing DLE verb forms")
 
     for tagged_verb in lemma_index.lookup(PartOfSpeech.VERB):
-        verb = cast(Verb, tagged_verb.value)
+        verb = cast("Verb", tagged_verb.value)
         for dle_form in get_verb_forms(verb.tag):
             tagged_element = element_index.setdefault(
                 dle_form.tag, dle_form.as_verb_form(verb)
             )
 
-            form = cast(VerbForm, tagged_element.value)
+            form = cast("VerbForm", tagged_element.value)
             tagged_element.tag(*form.tags, Regularity.CORRECT_FORM)
 
 
-def index_regular_forms():
+def index_regular_forms() -> None:
     _logger.info("indexing regular verb forms")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
         conjugation_analysis.index_regular_forms(
-            cast(VerbForm, tagged_form.value),
+            cast("VerbForm", tagged_form.value),
             regular_form_conjugator,
             Regularity.REGULAR_FORM,
         )
 
 
-def analyze_irregular_affixes():
+def analyze_irregular_affixes() -> None:
     _logger.info("analyzing irregular affixes")
 
     for tagged_form in element_index.lookup(
         Regularity.CORRECT_FORM
     ) - element_index.lookup(Regularity.REGULAR_FORM):
-        conjugation_analysis.annotate_irregular_affix(cast(VerbForm, tagged_form.value))
+        conjugation_analysis.annotate_irregular_affix(
+            cast("VerbForm", tagged_form.value)
+        )
 
 
-def index_regular_constructions():
+def index_regular_constructions() -> None:
     _logger.info("indexing regular verb form constructions")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
         conjugation_analysis.index_regular_forms(
-            cast(VerbForm, tagged_form.value),
+            cast("VerbForm", tagged_form.value),
             regular_construction_conjugator,
             Regularity.REGULAR_CONSTRUCTION,
         )
 
 
-def annotate_irregular_forms():
+def annotate_irregular_forms() -> None:
     _logger.info("annotating irregular verb forms")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
-        conjugation_analysis.annotate_irregular_form(cast(VerbForm, tagged_form.value))
+        conjugation_analysis.annotate_irregular_form(
+            cast("VerbForm", tagged_form.value)
+        )
 
     for tagged_verb in lemma_index.lookup(PartOfSpeech.VERB) - lemma_index.lookup(
         Regularity.IRREGULAR_VERB
@@ -187,16 +191,16 @@ def annotate_irregular_forms():
         tagged_verb.tag(Regularity.REGULAR_VERB)
 
 
-def annotate_irregular_constructions():
+def annotate_irregular_constructions() -> None:
     _logger.info("annotating irregular verb form constructions")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
         conjugation_analysis.annotate_irregular_construction(
-            cast(VerbForm, tagged_form.value)
+            cast("VerbForm", tagged_form.value)
         )
 
 
-def analyze_element_phonetics():
+def analyze_element_phonetics() -> None:
     _logger.info("analyzing element phonetics")
 
     for tagged_element in element_index.lookup():
@@ -208,14 +212,14 @@ def analyze_element_phonetics():
         spelling_analysis.tag_phonetic_spelling(key)
 
 
-def tag_shared_forms():
+def tag_shared_forms() -> None:
     _logger.info("tagging shared forms")
 
     for tagged_element in element_index.lookup():
         spelling_analysis.tag_shared_forms(tagged_element.key)
 
 
-def tag_verb_homonyms():
+def tag_verb_homonyms() -> None:
     _logger.info("tagging verb homonyms")
 
     for tagged_form in element_index.lookup(PartOfSpeech.VERB):
@@ -225,7 +229,7 @@ def tag_verb_homonyms():
             spelling_analysis.tag_homonyms(tag)
 
 
-def export_verb_data():
+def export_verb_data() -> None:
     _logger.info("exporting verb data")
 
     export_data = export_verb_forms_and_homonyms()

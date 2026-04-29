@@ -1,7 +1,10 @@
 from abc import ABC
 from dataclasses import dataclass, field, replace
 from functools import total_ordering
-from typing import Callable, Concatenate
+from typing import TYPE_CHECKING, Concatenate
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,9 +23,11 @@ class StringAnnotation(ABC):
 
     def __post_init__(self) -> None:
         if self.start < 0:
-            raise ValueError(f"start must be >= 0, got {self.start}")
+            msg = f"start must be >= 0, got {self.start}"
+            raise ValueError(msg)
         if self.stop > len(self.string.text):
-            raise ValueError(f"stop must be <= string length, got {self.stop}")
+            msg = f"stop must be <= string length, got {self.stop}"
+            raise ValueError(msg)
 
     @property
     def text(self) -> str:
@@ -32,7 +37,7 @@ class StringAnnotation(ABC):
     def key(self) -> StringAnnotationKey:
         return StringAnnotationKey(type(self), self.start, self.stop)
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: StringAnnotation) -> bool:
         if not isinstance(other, StringAnnotation):
             return NotImplemented
         return (self.start, self.stop) < (other.start, other.stop)
@@ -70,9 +75,10 @@ class AnnotatedString:
         self._annotations[annotation.key] = annotation
         return annotation
 
-    def add_annotation[T: StringAnnotation](self, annotation: T):
+    def add_annotation[T: StringAnnotation](self, annotation: T) -> None:
         if annotation.string is not self:
-            raise ValueError(f"annotation {annotation} is not for this string")
+            msg = f"annotation {annotation} is not for this string"
+            raise ValueError(msg)
         self._annotations[annotation.key] = annotation
 
     def get_annotations[T: StringAnnotation](
@@ -100,9 +106,11 @@ class AnnotatedString:
     ) -> T | None:
         annotations = self.get_annotations(annotation_type, start, stop)
         if len(annotations) > 1:
-            raise ValueError(
-                f"multiple annotations of type {annotation_type} found for string {self.text}"
+            msg = (
+                f"multiple annotations of type {annotation_type} "
+                f"found for string {self.text}"
             )
+            raise ValueError(msg)
         return annotations[0] if len(annotations) > 0 else None
 
     def get_annotation[T: StringAnnotation](
@@ -110,12 +118,13 @@ class AnnotatedString:
         annotation_type: type[T],
         start: int | None = None,
         stop: int | None = None,
-    ):
+    ) -> T:
         annotation = self.get_annotation_or_none(annotation_type, start, stop)
         if annotation is None:
-            raise KeyError(
+            msg = (
                 f"no annotation of type {annotation_type} found for string {self.text}"
             )
+            raise KeyError(msg)
         return annotation
 
     def remove_annotations[T: StringAnnotation](

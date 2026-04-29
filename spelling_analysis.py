@@ -35,7 +35,7 @@ class Homonym(Enum):
     PARONYM = "parónimo"
 
 
-def tag_phonetic_spelling(element_tag: ElementTag):
+def tag_phonetic_spelling(element_tag: ElementTag) -> None:
     tagged_element = element_index[element_tag]
     phonemes = tagged_element.value.annotated_form.get_annotations(Phoneme)
     tagged_element.tag(
@@ -61,7 +61,7 @@ def _get_paronymic_spelling(phoneme: Phoneme) -> str:
     return phoneme.phoneme
 
 
-def tag_shared_forms(element_tag: ElementTag):
+def tag_shared_forms(element_tag: ElementTag) -> None:
     tagged_element = element_index[element_tag]
     shared_forms = element_index.lookup(
         element_tag.part_of_speech, element_tag.form_tag

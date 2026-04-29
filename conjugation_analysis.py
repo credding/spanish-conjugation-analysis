@@ -1,12 +1,14 @@
 import re
 from dataclasses import dataclass, replace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from annotated_string import AnnotatedString
 from conjugation import SpellingChange, VerbAffix, VerbConjugator, VerbSubject
 from diff_analysis import DiffAnnotation, annotate_diff
 from grammar_model import Regularity, VerbForm
 from run_context import element_index, lemma_index
+
+if TYPE_CHECKING:
+    from annotated_string import AnnotatedString
 
 
 @dataclass(repr=False)
@@ -20,10 +22,8 @@ class IrregularConstruction(DiffAnnotation):
 
 
 def index_regular_forms(
-    correct_form: VerbForm,
-    regular_conjugator: VerbConjugator,
-    regular_tag: Regularity,
-):
+    correct_form: VerbForm, regular_conjugator: VerbConjugator, regular_tag: Regularity
+) -> None:
     annotated_forms = regular_conjugator.conjugate(
         correct_form.lemma_tag,
         correct_form.tense,
@@ -51,7 +51,7 @@ def index_regular_forms(
             tagged_form.tag(Regularity.SPELLING_CHANGE)
 
 
-def annotate_irregular_affix(correct_form: VerbForm):
+def annotate_irregular_affix(correct_form: VerbForm) -> None:
     regular_form = _get_regular_form(correct_form)
     if regular_form is None:
         return
@@ -62,7 +62,7 @@ def annotate_irregular_affix(correct_form: VerbForm):
     )
 
 
-def annotate_irregular_form(correct_form: VerbForm):
+def annotate_irregular_form(correct_form: VerbForm) -> None:
     regular_form = _get_regular_form(correct_form)
     if regular_form is None:
         return
@@ -86,36 +86,39 @@ def _get_regular_form(correct_form: VerbForm) -> VerbForm | None:
         Regularity.REGULAR_FORM,
     )
 
-    assert len(regular_entries) == 1
+    assert len(regular_entries) == 1  # noqa: S101
     tagged_regular_form = regular_entries.pop()
-    return cast(VerbForm, tagged_regular_form.value)
+    return cast("VerbForm", tagged_regular_form.value)
+
+
+_I_PATTERN = r"[iíy]?"
+_VERB_CONSONANT_PATTERN = r"[aáeéíioó]+[^aáeéiíoó]*"
+_AFFIX_START_PATTERN = re.compile(rf"^({_I_PATTERN}){_VERB_CONSONANT_PATTERN}")
 
 
 def _annotate_irregular_affix(
     correct_form: AnnotatedString, regular_form: AnnotatedString
-):
+) -> None:
     regular_affix = regular_form.get_annotation(VerbAffix)
 
-    affix_start_match = re.search(
-        "^([iíy])?[aáeéíioó]+[^aáeéiíoó]*", regular_affix.text
-    )
-    assert affix_start_match is not None
+    affix_start_match = _AFFIX_START_PATTERN.search(regular_affix.text)
+    assert affix_start_match is not None  # noqa: S101
 
     affix_pattern = (
-        "[aáeéiíoó]+[^aáeéiíoó]*" + regular_affix.text[affix_start_match.end() :] + "$"
+        _VERB_CONSONANT_PATTERN + regular_affix.text[affix_start_match.end() :] + "$"
     )
     if affix_start_match.group(1):
-        affix_pattern = "[iíy]?" + affix_pattern
+        affix_pattern = _I_PATTERN + affix_pattern
 
     affix_match = re.search(affix_pattern, correct_form.text)
-    assert affix_match is not None
+    assert affix_match is not None  # noqa: S101
 
     correct_form.annotate(VerbAffix, affix_match.start(), len(correct_form.text))
 
 
 def _annotate_irregular_subject(
     correct_form: AnnotatedString, regular_form: AnnotatedString
-):
+) -> None:
     regular_subject = regular_form.get_annotation_or_none(VerbSubject)
     if regular_subject is None:
         return
@@ -129,7 +132,7 @@ def _annotate_irregular_subject(
     correct_form.annotate(VerbSubject, subject_start, len(correct_form.text))
 
 
-def annotate_irregular_construction(correct_form: VerbForm):
+def annotate_irregular_construction(correct_form: VerbForm) -> None:
     regular_construction = _get_regular_construction(correct_form)
     if regular_construction is None:
         return
@@ -165,4 +168,4 @@ def _get_regular_construction(correct_form: VerbForm) -> VerbForm | None:
         regular_entries[0],
     )
 
-    return cast(VerbForm, tagged_regular_form.value)
+    return cast("VerbForm", tagged_regular_form.value)

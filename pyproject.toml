@@ -13,3 +13,13 @@ dependencies = [
     "ruff>=0.15.12",
     "ty>=0.0.33",
 ]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "COM812"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true

@@ -2,14 +2,14 @@ from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
-from typing import Any
+from typing import Any, Self
 
 from annotated_string import AnnotatedString
 
 
 @total_ordering
 class _OrderedEnum(Enum):
-    def __lt__(self, other):
+    def __lt__(self, other: Self) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
         members = [*type(self)]
@@ -103,7 +103,7 @@ class Element(BaseElement):
     form: str
     annotated_form: AnnotatedString = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.annotated_form = AnnotatedString(self.form)
 
     @property
@@ -118,7 +118,7 @@ class VerbTag(LemmaTag):
     )
 
     @property
-    def is_reflexive(self):
+    def is_reflexive(self) -> bool:
         return self.base_form.endswith("se")
 
     @property
@@ -176,8 +176,8 @@ class Subject(_OrderedEnum):
 
 
 class Variant(_OrderedEnum):
-    RA = "variante ‘ra’"
-    SE = "variante ‘se’"
+    RA = "variante ‘ra’"  # noqa: RUF001
+    SE = "variante ‘se’"  # noqa: RUF001
 
 
 @dataclass(frozen=True, slots=True)
