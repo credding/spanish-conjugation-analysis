@@ -57,6 +57,7 @@ class BaseLemma(ABC):
 
 @dataclass
 class Lemma(BaseLemma):
+    dle_url: str = ""
     freq_adj: float = 0
 
     @property

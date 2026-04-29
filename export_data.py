@@ -51,8 +51,8 @@ def export_verb_forms_and_homonyms() -> ExportData:
 
 def _lemma_sort(lemma: Lemma) -> tuple:
     if isinstance(lemma, Verb):
-        return (-lemma.freq_adj, lemma.base_form, lemma.part_of_speech)
-    return (-lemma.freq_adj, lemma.base_form, lemma.part_of_speech)
+        return -lemma.freq_adj, lemma.base_form, lemma.part_of_speech
+    return -lemma.freq_adj, lemma.base_form, lemma.part_of_speech
 
 
 def _element_sort(element: Element) -> tuple:
@@ -69,7 +69,7 @@ def _element_sort(element: Element) -> tuple:
             element.preference,
             element.form,
         )
-    return (*_lemma_sort(element.lemma), element.form)
+    return *_lemma_sort(element.lemma), element.form
 
 
 def _map_lemma(lemma: Lemma) -> ExportLemma:
@@ -81,11 +81,13 @@ def _map_lemma(lemma: Lemma) -> ExportLemma:
             regularity=sorted(tagged_lemma.get_tags(Regularity)),
             models=[x.base_form for x in lemma.models],
             study_order=lemma.study_order,
+            dle_url=lemma.dle_url,
             freq_adj=lemma.freq_adj,
         )
     return ExportLemma(
         part_of_speech=lemma.part_of_speech,
         lemma=lemma.base_form,
+        dle_url=lemma.dle_url,
         freq_adj=lemma.freq_adj,
     )
 

@@ -1,14 +1,15 @@
 import logging
 import re
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
+
+from dle_model import DLEVerbForm
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from bs4 import Tag
 
-from grammar_model import BaseVerbForm, Subject, Tense, Variant, Verb, VerbForm, VerbTag
+from grammar_model import Subject, Tense, Variant, VerbTag
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
 from run_context import dle, memory
 
@@ -81,25 +82,6 @@ _REFLEXIVE_PRONOUNS = {
     Subject.ELLOS_ELLAS: "se",
     Subject.USTEDES: "se",
 }
-
-
-@dataclass
-class DLEVerbForm(BaseVerbForm):
-    subject_group: list[Subject]
-    variant: Variant | None
-    preference: int
-
-    def as_verb_form(self, verb: Verb) -> VerbForm:
-        return VerbForm(
-            self.lemma_tag,
-            self.form,
-            verb,
-            self.tense,
-            self.subject,
-            self.subject_group,
-            self.variant,
-            self.preference,
-        )
 
 
 @memory.cache

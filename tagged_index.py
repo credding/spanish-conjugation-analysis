@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import InitVar, dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Hashable
@@ -14,13 +14,13 @@ class Relationship:
 
 @dataclass(eq=False)
 class TaggedItem[K: Hashable, V]:
-    index: InitVar[TaggedIndex]
+    index: InitVar[TaggedIndex[K, V]]
     key: K
     value: V
 
     tags: set[Hashable] = field(default_factory=set, init=False)
 
-    def __post_init__(self, index: TaggedIndex[Any, Any]) -> None:
+    def __post_init__(self, index: TaggedIndex[K, V]) -> None:
         self._index = index
 
     def tag(self, *tags: Hashable) -> None:
@@ -28,17 +28,17 @@ class TaggedItem[K: Hashable, V]:
         for tag in tags:
             self._index._lookup[tag].add(self)  # noqa: SLF001
 
-    def get_tags[T: Any](self, tag_type: type[T]) -> set[T]:
+    def get_tags[T: Hashable](self, tag_type: type[T]) -> set[T]:
         return {x for x in self.tags if isinstance(x, tag_type)}
 
-    def get_tag_or_none[T: Any](self, tag_type: type[T]) -> T | None:
+    def get_tag_or_none[T: Hashable](self, tag_type: type[T]) -> T | None:
         tags = self.get_tags(tag_type)
         if len(tags) > 1:
             msg = f"multiple tags of type {tag_type} found for item {self.value}"
             raise ValueError(msg)
         return tags.pop() if len(tags) > 0 else None
 
-    def get_tag[T: Any](self, tag_type: type[T]) -> T:
+    def get_tag[T: Hashable](self, tag_type: type[T]) -> T:
         tag = self.get_tag_or_none(tag_type)
         if tag is None:
             msg = f"no tag of type {tag_type} found for item {self.value}"
@@ -68,6 +68,14 @@ class TaggedIndex[K: Hashable, V]:
         entry = TaggedItem(self, key, value)
         self._items[key] = entry
         return entry
+
+    def remove(self, key: K) -> None:
+        entry = self._items.pop(key, None)
+        if entry is None:
+            return
+        for tag_set in self._lookup.values():
+            tag_set.discard(entry)
+        return
 
     def lookup(self, *tags: Hashable) -> set[TaggedItem[K, V]]:
         if len(tags) == 0:

@@ -1,6 +1,7 @@
+import math
 from functools import total_ordering
 
-from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
+from pydantic import AliasGenerator, BaseModel, ConfigDict, Field, field_serializer
 from pydantic.alias_generators import to_camel
 
 from grammar_model import (  # noqa: TC001
@@ -26,7 +27,12 @@ class ExportLemma(BaseModel):
 
     lemma: str
     part_of_speech: PartOfSpeech
+    dle_url: str
     freq_adj: float
+
+    @field_serializer("freq_adj")
+    def serialize_freq_adj(self, freq_adj: float) -> float:
+        return round(freq_adj, 6 - math.ceil(math.log10(freq_adj)))
 
 
 class ExportVerb(ExportLemma):

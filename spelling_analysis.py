@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from grammar_model import ElementTag, Regularity
+from grammar_model import Element, ElementTag, FormTag, Regularity
 from phonetic_analysis import (
     STRESSED_VOWELS,
     TRANSLATE_ADD_STRESS,
@@ -9,6 +10,11 @@ from phonetic_analysis import (
     Phoneme,
 )
 from run_context import element_index, lemma_index
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable
+
+    from tagged_index import TaggedItem
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,19 +80,17 @@ def tag_shared_forms(element_tag: ElementTag) -> None:
         tagged_element.relate_to(x, Homonym.SHARED_FORM)
 
 
+def tag_homonyms_lemmas(element_tag: ElementTag) -> None:
+    tagged_element = element_index[element_tag]
+
+    for x in _lookup_homonyms(tagged_element):
+        lemma_index[x.key.lemma_tag].tag(Homonym.HOMONYM)
+
+
 def tag_homonyms(element_tag: ElementTag) -> list[ElementTag]:
     tagged_element = element_index[element_tag]
-    phonetic_spelling = tagged_element.get_tag(PhoneticSpelling)
-    heteronymic_spelling = tagged_element.get_tag(HeteronymicSpelling)
-    paronymic_spelling = tagged_element.get_tag(ParonymicSpelling)
 
-    all_homonyms = element_index.lookup(paronymic_spelling)
-    all_homonyms.difference_update(
-        element_index.lookup(Regularity.INCORRECT_FORM, paronymic_spelling),
-        element_index.lookup(element_tag.part_of_speech, element_tag.form_tag),
-        element_index.lookup(element_tag.lemma_tag),
-    )
-
+    all_homonyms = _lookup_homonyms(tagged_element)
     if len(all_homonyms) == 0:
         return []
 
@@ -94,23 +98,47 @@ def tag_homonyms(element_tag: ElementTag) -> list[ElementTag]:
     tagged_element.tag(Homonym.HOMONYM)
 
     homonyms = set(all_homonyms)
-
-    homographs = homonyms & element_index.lookup(element_tag.form_tag)
-    for x in homographs:
-        tagged_element.relate_to(x, Homonym.HOMOGRAPH)
-
-    homonyms -= homographs
-    homophones = homonyms & element_index.lookup(phonetic_spelling)
-    for x in homophones:
-        tagged_element.relate_to(x, Homonym.HOMOPHONE)
-
-    homonyms -= homophones
-    heteronyms = homonyms & element_index.lookup(heteronymic_spelling)
-    for x in heteronyms:
-        tagged_element.relate_to(x, Homonym.HETERONYM)
-
-    homonyms -= heteronyms
-    for x in homonyms:
-        tagged_element.relate_to(x, Homonym.PARONYM)
+    homonyms -= _relate_homonyms(tagged_element, homonyms, FormTag, Homonym.HOMOGRAPH)
+    homonyms -= _relate_homonyms(
+        tagged_element, homonyms, PhoneticSpelling, Homonym.HOMOPHONE
+    )
+    homonyms -= _relate_homonyms(
+        tagged_element, homonyms, HeteronymicSpelling, Homonym.HETERONYM
+    )
+    homonyms -= _relate_homonyms(
+        tagged_element, homonyms, ParonymicSpelling, Homonym.PARONYM
+    )
 
     return [x.key for x in all_homonyms]
+
+
+def _lookup_homonyms(
+    tagged_element: TaggedItem[ElementTag, Element],
+) -> set[TaggedItem[ElementTag, Element]]:
+    element_tag = tagged_element.key
+    paronymic_spelling = tagged_element.get_tag(ParonymicSpelling)
+
+    homonyms = element_index.lookup(paronymic_spelling)
+    homonyms.difference_update(
+        element_index.lookup(Regularity.INCORRECT_FORM, paronymic_spelling),
+        element_index.lookup(element_tag.part_of_speech, element_tag.form_tag),
+        element_index.lookup(element_tag.lemma_tag),
+    )
+
+    return homonyms
+
+
+def _relate_homonyms(
+    tagged_element: TaggedItem[ElementTag, Element],
+    homonyms: set[TaggedItem[ElementTag, Element]],
+    form_tag_type: type[Hashable],
+    homonym_tag: Homonym,
+) -> set[TaggedItem[ElementTag, Element]]:
+    form_tag = tagged_element.get_tag(form_tag_type)
+
+    matching_forms = homonyms & element_index.lookup(form_tag)
+    for x in matching_forms:
+        x.tag(Homonym.HOMONYM)
+        tagged_element.relate_to(x, homonym_tag)
+
+    return matching_forms

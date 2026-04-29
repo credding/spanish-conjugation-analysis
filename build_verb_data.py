@@ -6,6 +6,7 @@ import phonetic_analysis
 import spelling_analysis
 import stress_analysis
 import syllable_analysis
+from dle_lemma import get_lemma
 from dle_verb_forms import get_verb_forms
 from dle_verbs import get_verb
 from export_data import export_verb_forms_and_homonyms
@@ -18,6 +19,7 @@ from run_context import (
     regular_construction_conjugator,
     regular_form_conjugator,
 )
+from spelling_analysis import Homonym
 
 _logger = logging.getLogger(__name__)
 
@@ -32,16 +34,20 @@ def main() -> None:
 
     index_dle_verb_forms()
 
-    index_regular_forms()
-    analyze_irregular_affixes()
+    index_regular_verb_forms()
+    analyze_irregular_verb_form_affixes()
 
-    index_regular_constructions()
-    annotate_irregular_forms()
-    annotate_irregular_constructions()
+    index_regular_verb_form_constructions()
+    annotate_irregular_verb_forms()
+    annotate_irregular_verb_form_constructions()
 
     analyze_element_phonetics()
+
+    tag_verb_form_homonym_lemmas()
+    lookup_dle_homonym_lemmas()
+
     tag_shared_forms()
-    tag_verb_homonyms()
+    tag_verb_form_homonym_elements()
 
     export_verb_data()
 
@@ -53,6 +59,12 @@ def index_top_corpes_lemmas() -> None:
 
     top_lemmas = corpes.get_top_lemmas_by_freq_adj(5000)
     for freq_lemma in top_lemmas:
+        if (
+            freq_lemma.part_of_speech is PartOfSpeech.NOUN
+            and len(freq_lemma.base_form) == 1
+        ):
+            continue
+
         if freq_lemma.part_of_speech is PartOfSpeech.VERB:
             dle_verb = get_verb(freq_lemma.tag)
             tagged_lemma = lemma_index.setdefault(dle_verb.tag, dle_verb.as_verb())
@@ -71,6 +83,9 @@ def index_top_corpes_elements() -> None:
 
     for tagged_lemma in lemma_index.lookup() - lemma_index.lookup(PartOfSpeech.VERB):
         for freq_element in corpes.get_top_elements(tagged_lemma.key):
+            if not (freq_element.form.isalpha() and freq_element.form.islower()):
+                continue
+
             tagged_element = element_index.setdefault(
                 freq_element.tag, freq_element.as_element(tagged_lemma.value)
             )
@@ -123,7 +138,8 @@ def index_dle_model_verbs() -> None:
     }
     for verb_tag in model_verbs:
         freq_lemma = corpes.get_lemma(verb_tag)
-        tagged_verb = lemma_index.setdefault(verb_tag, Verb(verb_tag.base_form))
+        dle_verb = get_verb(verb_tag)
+        tagged_verb = lemma_index.setdefault(verb_tag, dle_verb.as_verb())
 
         verb = tagged_verb.value
         verb.freq_adj = freq_lemma.freq_adj
@@ -144,7 +160,7 @@ def index_dle_verb_forms() -> None:
             tagged_element.tag(*form.tags, Regularity.CORRECT_FORM)
 
 
-def index_regular_forms() -> None:
+def index_regular_verb_forms() -> None:
     _logger.info("indexing regular verb forms")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
@@ -155,8 +171,8 @@ def index_regular_forms() -> None:
         )
 
 
-def analyze_irregular_affixes() -> None:
-    _logger.info("analyzing irregular affixes")
+def analyze_irregular_verb_form_affixes() -> None:
+    _logger.info("analyzing irregular verb form affixes")
 
     for tagged_form in element_index.lookup(
         Regularity.CORRECT_FORM
@@ -166,7 +182,7 @@ def analyze_irregular_affixes() -> None:
         )
 
 
-def index_regular_constructions() -> None:
+def index_regular_verb_form_constructions() -> None:
     _logger.info("indexing regular verb form constructions")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
@@ -177,7 +193,7 @@ def index_regular_constructions() -> None:
         )
 
 
-def annotate_irregular_forms() -> None:
+def annotate_irregular_verb_forms() -> None:
     _logger.info("annotating irregular verb forms")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
@@ -191,7 +207,7 @@ def annotate_irregular_forms() -> None:
         tagged_verb.tag(Regularity.REGULAR_VERB)
 
 
-def annotate_irregular_constructions() -> None:
+def annotate_irregular_verb_form_constructions() -> None:
     _logger.info("annotating irregular verb form constructions")
 
     for tagged_form in element_index.lookup(Regularity.CORRECT_FORM):
@@ -212,6 +228,33 @@ def analyze_element_phonetics() -> None:
         spelling_analysis.tag_phonetic_spelling(key)
 
 
+def tag_verb_form_homonym_lemmas() -> None:
+    _logger.info("tagging verb form homonym lemmas")
+
+    for tagged_form in element_index.lookup(PartOfSpeech.VERB):
+        spelling_analysis.tag_homonyms_lemmas(tagged_form.key)
+
+
+def lookup_dle_homonym_lemmas() -> None:
+    _logger.info("looking up homonyms in DLE")
+
+    for tagged_lemma in lemma_index.lookup(Homonym.HOMONYM):
+        dle_lemma = get_lemma(tagged_lemma.key)
+
+        if dle_lemma is None:
+            _logger.info(
+                "removing lemma not found in DLE: %s (%s)",
+                tagged_lemma.value.base_form,
+                tagged_lemma.value.part_of_speech.name.lower(),
+            )
+            lemma_index.remove(tagged_lemma.key)
+            for tagged_element in element_index.lookup(tagged_lemma.key):
+                element_index.remove(tagged_element.key)
+            continue
+
+        tagged_lemma.value.dle_url = dle_lemma.dle_url
+
+
 def tag_shared_forms() -> None:
     _logger.info("tagging shared forms")
 
@@ -219,14 +262,13 @@ def tag_shared_forms() -> None:
         spelling_analysis.tag_shared_forms(tagged_element.key)
 
 
-def tag_verb_homonyms() -> None:
-    _logger.info("tagging verb homonyms")
+def tag_verb_form_homonym_elements() -> None:
+    _logger.info("tagging verb form homonym elements")
 
     for tagged_form in element_index.lookup(PartOfSpeech.VERB):
-        for tag in spelling_analysis.tag_homonyms(tagged_form.key):
-            if tag.part_of_speech is PartOfSpeech.VERB:
-                continue
-            spelling_analysis.tag_homonyms(tag)
+        for homonym in spelling_analysis.tag_homonyms(tagged_form.key):
+            if homonym.part_of_speech is not PartOfSpeech.VERB:
+                spelling_analysis.tag_homonyms(homonym)
 
 
 def export_verb_data() -> None:

@@ -34,7 +34,7 @@ class FreqLemma(BaseLemma):
     freq_adj: float
 
     def as_lemma(self) -> Lemma:
-        return Lemma(self.base_form, self.part_of_speech, self.freq_adj)
+        return Lemma(self.base_form, self.part_of_speech, freq_adj=self.freq_adj)
 
 
 @dataclass
@@ -62,7 +62,8 @@ class CORPES:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
                 "SELECT form, lemma, tag FROM freq_elements "
-                "WHERE lemma = ? AND tag LIKE ? || '%' ORDER BY id; ",
+                "WHERE lemma = ? AND tag LIKE ? || '%' AND freq_norm_without_punc > 0 "
+                "ORDER BY id;",
                 (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
             )
             return [_map_element(x) for x in cur]
