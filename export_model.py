@@ -1,7 +1,9 @@
+from functools import total_ordering
+
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from grammar_model import Class, Regularity, Subject, Tense, Variant
+from grammar_model import PartOfSpeech, Regularity, Subject, Tense, Variant
 
 
 class ExportData(BaseModel):
@@ -16,15 +18,18 @@ class ExportLemma(BaseModel):
         polymorphic_serialization=True,
     )
 
-    class_: Class = Field(serialization_alias="class")
     lemma: str
+    part_of_speech: PartOfSpeech
     freq_adj: float
 
 
 class ExportVerb(ExportLemma):
-    models: list[str]
+    regularity: list[Regularity] = Field(default_factory=list)
+    models: list[str] = Field(default_factory=list)
+    study_order: int | None = None
 
 
+@total_ordering
 class ExportElementId(BaseModel):
     model_config = ConfigDict(
         alias_generator=AliasGenerator(serialization_alias=to_camel),
@@ -32,14 +37,28 @@ class ExportElementId(BaseModel):
         polymorphic_serialization=True,
     )
 
-    class_: Class = Field(serialization_alias="class")
     lemma: str
+    part_of_speech: PartOfSpeech
     form: str
+
+    def __lt__(self, other: ExportElementId) -> bool:
+        if not isinstance(other, ExportElementId):
+            return NotImplemented
+        a = (self.lemma, self.part_of_speech, self.form)
+        b = (other.lemma, other.part_of_speech, other.form)
+        return a < b
 
 
 class ExportVerbFormId(ExportElementId):
     tense: Tense
     subject: Subject
+
+    def __lt__(self, other: ExportElementId) -> bool:
+        if not isinstance(other, ExportVerbFormId):
+            return super().__lt__(other)
+        a = (self.lemma, self.part_of_speech, self.tense, self.subject, self.form)
+        b = (other.lemma, other.part_of_speech, other.tense, other.subject, other.form)
+        return a < b
 
 
 class ExportElement(BaseModel):
@@ -82,6 +101,5 @@ class ExportVerbForm(ExportElement):
 
 
 class FormChange(BaseModel):
-    start_offset: int
-    end_offset: int
+    range: tuple[int, int]
     from_form: str

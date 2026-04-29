@@ -1,8 +1,53 @@
 from contextlib import closing
+from dataclasses import dataclass
 
 import corpes_db
-from corpes_model import DpLemma, FreqElement
-from grammar_model import Lemma
+from grammar_model import (
+    BaseElement,
+    BaseLemma,
+    Element,
+    Lemma,
+    LemmaTag,
+    PartOfSpeech,
+)
+
+_PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
+    "A": PartOfSpeech.ADJECTIVE,
+    "R": PartOfSpeech.ADVERB,
+    "J": PartOfSpeech.AFFIX,
+    "T": PartOfSpeech.ARTICLE,
+    "C": PartOfSpeech.CONJUNCTION,
+    "E": PartOfSpeech.CONTRACTION,
+    "Q": PartOfSpeech.QUANTIFIER,
+    "D": PartOfSpeech.DEMONSTRATIVE,
+    "U": PartOfSpeech.UNKNOWN,
+    "F": PartOfSpeech.FOREIGN,
+    "I": PartOfSpeech.INTERJECTION,
+    "W": PartOfSpeech.INTERROGATIVE,
+    "M": PartOfSpeech.NUMERAL,
+    "X": PartOfSpeech.POSSESSIVE,
+    "P": PartOfSpeech.PREPOSITION,
+    "L": PartOfSpeech.PERSONAL_PRONOUN,
+    "Y": PartOfSpeech.PUNCTUATION,
+    "H": PartOfSpeech.RELATIVE,
+    "N": PartOfSpeech.NOUN,
+    "V": PartOfSpeech.VERB,
+}
+_PARTS_OF_SPEECH_INV = {v: k for k, v in _PARTS_OF_SPEECH.items()}
+
+
+@dataclass
+class FreqLemma(BaseLemma):
+    freq_adj: float
+
+    def as_lemma(self) -> Lemma:
+        return Lemma(self.base_form, self.part_of_speech, self.freq_adj)
+
+
+@dataclass
+class FreqElement(BaseElement):
+    def as_element(self, lemma: Lemma) -> Element:
+        return Element(self.lemma_tag, self.form, lemma)
 
 
 class CORPES:
@@ -11,60 +56,36 @@ class CORPES:
 
         self._conn = corpes_db.connect()
 
-    def get_top_lemmas_by_freq_adj(self, n: int | None = None) -> list[DpLemma]:
-        limit_clause = ""
-        parameters = ()
-        if n is not None:
-            limit_clause = " LIMIT ?"
-            parameters = (n,)
-
+    def get_top_lemmas_by_freq_adj(self, n: int = -1) -> list[FreqLemma]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT lemma, class AS class_str, freq, freq_norm, dp, num_countries, freq_adj "
-                "FROM dp_lemmas "
-                f"ORDER BY freq_adj DESC {limit_clause};",
-                parameters,
+                "SELECT lemma, class, freq_adj FROM dp_lemmas ORDER BY freq_adj DESC LIMIT ?;",
+                (n,),
             )
-            return [DpLemma(**x) for x in cur]
+            return [_map_lemma(x) for x in cur]
 
-    def get_top_elements_by_lemma_freq_adj(
-        self, n: int | None = None
-    ) -> list[FreqElement]:
-        limit_clause = ""
-        parameters = ()
-        if n is not None:
-            limit_clause = "LIMIT ? "
-            parameters = (n,)
-
+    def get_top_elements(self, lemma_tag: LemmaTag) -> list[FreqElement]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                f"WITH top_dp_lemmas AS (SELECT lemma, class FROM dp_lemmas ORDER BY freq_adj DESC {limit_clause})"
-                "SELECT e.form, e.lemma, e.tag as tag_str, e.freq, e.freq_norm_with_punc, e.freq_norm_without_punc "
-                "FROM freq_elements e "
-                "JOIN top_dp_lemmas l ON e.lemma = l.lemma AND e.tag LIKE l.class || '%'"
-                "ORDER BY e.id;",
-                parameters,
+                "SELECT form, lemma, tag FROM freq_elements WHERE lemma = ? AND tag LIKE ? || '%' ORDER BY id; ",
+                (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
             )
-            return [FreqElement(**x) for x in cur]
+            return [_map_element(x) for x in cur]
 
-    def get_infinitive_element(self, lemma: Lemma) -> FreqElement:
+    def get_lemma(self, lemma_tag: LemmaTag) -> FreqLemma:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT lemma, form, tag as tag_str, freq, freq_norm_with_punc, freq_norm_without_punc FROM freq_elements "
-                "WHERE form = ? "
-                "AND tag LIKE 'V____v%' "  # only match infinitive forms
-                "ORDER BY id;",
-                (lemma.base_form,),
+                "SELECT lemma, class, freq_adj FROM dp_lemmas WHERE (lemma, class) = (?, ?);",
+                (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
             )
-            return FreqElement(**cur.fetchone())
+            return _map_lemma(cur.fetchone())
 
-    def get_dp_lemma(self, lemma: Lemma) -> DpLemma | None:
-        with closing(self._conn.cursor()) as cur:
-            cur.execute(
-                "SELECT lemma, class AS class_str, freq, freq_norm, dp, num_countries, freq_adj FROM dp_lemmas "
-                "WHERE (lemma, class) = (?, ?) "
-                "ORDER BY freq_adj DESC;",
-                (lemma.base_form, lemma.class_),
-            )
-            row = cur.fetchone()
-            return DpLemma(**row) if row else None
+
+def _map_lemma(row: dict) -> FreqLemma:
+    return FreqLemma(row["lemma"], _PARTS_OF_SPEECH[row["class"]], row["freq_adj"])
+
+
+def _map_element(row: dict) -> FreqElement:
+    return FreqElement(
+        LemmaTag(row["lemma"], _PARTS_OF_SPEECH[row["tag"][0]]), row["form"]
+    )

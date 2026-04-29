@@ -2,15 +2,15 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from phonetic_analysis import Phoneme, PhonemeKind
-from string_analysis import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, StringAnnotation
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class Syllable(StringAnnotation):
     pass
 
 
-def annotate_syllables(word: AnnotatedString) -> list[Syllable]:
+def annotate_syllables(word: AnnotatedString):
     """
     Primary reference: [Syllabification Rules for Spanish (University of Pennsylvania; Mena, C.)](https://catalog.ldc.upenn.edu/docs/LDC2019S07/Syllabification_Rules_in_Spanish.pdf)
 
@@ -23,7 +23,7 @@ def annotate_syllables(word: AnnotatedString) -> list[Syllable]:
     state = _SyllableAnalysisState()
     for phoneme in word.get_annotations(Phoneme):
         state.evaluate_phoneme(phoneme)
-    return state.evaluate_end()
+    state.evaluate_end()
 
 
 class _SyllablePart(Enum):
@@ -74,10 +74,9 @@ class _SyllableAnalysisState:
 
         self._syllable_phonemes.append(phoneme)
 
-    def evaluate_end(self) -> list[Syllable]:
+    def evaluate_end(self):
         if len(self._syllable_phonemes) > 0:
             self._annotate_syllable()
-        return self._syllables
 
     def _evaluate_at_start_consonant(self, phoneme: Phoneme):
         match phoneme.phoneme_kind:

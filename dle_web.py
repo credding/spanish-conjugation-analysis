@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import PurePosixPath
 from urllib.parse import quote, unquote, urlsplit
 
@@ -19,7 +18,7 @@ class DLEPage:
     word: str
     content: bytes
 
-    @cached_property
+    @property
     def document(self) -> BeautifulSoup:
         return BeautifulSoup(self.content, "html.parser")
 

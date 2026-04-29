@@ -2,11 +2,18 @@ import csv
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import cache
 
+from annotated_string import AnnotatedString, StringAnnotation
 from diff_analysis import DiffAnnotation, annotate_diff
-from element_index import ElementIndex
-from grammar_model import Regularity, Subject, Tense, Variant, Verb, VerbForm
+from grammar_model import (
+    Element,
+    ElementTag,
+    Regularity,
+    Subject,
+    Tense,
+    Variant,
+    VerbTag,
+)
 from phonetic_analysis import (
     SOFT_VOWELS,
     TRANSLATE_ADD_STRESS,
@@ -16,25 +23,25 @@ from phonetic_analysis import (
     annotate_phonemes,
 )
 from resources import resources_path
-from string_analysis import AnnotatedString, StringAnnotation
+from tagged_index import TaggedIndex
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class VerbAffix(StringAnnotation):
     pass
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class VerbSubject(StringAnnotation):
     pass
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class VerbVariant(StringAnnotation):
     pass
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class SpellingChange(DiffAnnotation):
     pass
 
@@ -43,7 +50,7 @@ class VerbConjugator(ABC):
     @abstractmethod
     def conjugate(
         self,
-        verb: Verb,
+        verb_tag: VerbTag,
         tense: Tense,
         subject: Subject,
         variant: Variant | None,
@@ -54,12 +61,12 @@ class VerbConjugator(ABC):
 class RegularFormConjugator(VerbConjugator):
     def conjugate(
         self,
-        verb: Verb,
+        verb_tag: VerbTag,
         tense: Tense,
         subject: Subject,
         variant: Variant | None,
     ) -> list[AnnotatedString]:
-        spec_key = _VerbFormSpecKey(verb.ending, tense, subject, variant)
+        spec_key = _VerbFormSpecKey(verb_tag.ending, tense, subject, variant)
         spec = _REGULAR_CONJUGATION_LOOKUP.get(spec_key)
         if spec is None:
             return []
@@ -67,7 +74,7 @@ class RegularFormConjugator(VerbConjugator):
         form_candidates: list[AnnotatedString] = []
 
         for from_form in self._get_from_form_candidates(
-            verb, spec.from_tense, spec.from_subject
+            verb_tag, spec.from_tense, spec.from_subject
         ):
             form = _conjugate_form(from_form, spec)
             if form is not None:
@@ -76,39 +83,35 @@ class RegularFormConjugator(VerbConjugator):
         return form_candidates
 
     def _get_from_form_candidates(
-        self, verb: Verb, tense: Tense | None, subject: Subject | None
+        self, verb_tag: VerbTag, tense: Tense | None, subject: Subject | None
     ) -> list[AnnotatedString]:
         if tense is None or subject is None:
-            return [_infinitive_form(verb)]
-        return self.conjugate(verb, tense, subject, None)
+            return [_infinitive_form(verb_tag)]
+        return self.conjugate(verb_tag, tense, subject, None)
 
 
 class RegularConstructionConjugator(RegularFormConjugator):
-    def __init__(self, index: ElementIndex):
+    def __init__(self, index: TaggedIndex[ElementTag, Element]):
         self._index = index
 
     def _get_from_form_candidates(
-        self, verb: Verb, tense: Tense | None, subject: Subject | None
+        self, verb_tag: VerbTag, tense: Tense | None, subject: Subject | None
     ) -> list[AnnotatedString]:
         if tense is None or subject is None:
             return []
-        return [
-            x.annotated_form
+        return self.conjugate(verb_tag, tense, subject, None) or [
+            x.value.annotated_form
             for x in sorted(
-                self._index.lookup(
-                    VerbForm, Regularity.CORRECT_FORM, verb, tense, subject
-                ),
-                key=lambda x: x.element.preference,
+                self._index.lookup(Regularity.CORRECT_FORM, verb_tag, tense, subject),
+                key=lambda x: x.value.preference,
             )
         ]
 
 
-@cache
-def _infinitive_form(verb: Verb) -> AnnotatedString:
-    return AnnotatedString(verb.infinitive)
+def _infinitive_form(verb_tag: VerbTag) -> AnnotatedString:
+    return AnnotatedString(verb_tag.infinitive)
 
 
-@cache
 def _conjugate_form(
     from_form: AnnotatedString, spec: _VerbFormSpec
 ) -> AnnotatedString | None:
@@ -116,7 +119,7 @@ def _conjugate_form(
     annotate_phonemes(stem)
 
     if spec.truncate_len > 0:
-        assert spec.truncate_pattern
+        assert spec.truncate_pattern is not None
         if not spec.truncate_pattern.search(stem.text):
             return None
         stem = stem[: -spec.truncate_len]
@@ -134,7 +137,7 @@ def _conjugate_form(
 
     form = stem + affix
 
-    affix_annotation = form.remove_annotation(VerbAffix, raise_if_absent=False)
+    affix_annotation = form.remove_annotation_or_none(VerbAffix)
     if affix_annotation is not None:
         affix_start = affix_annotation.start
     else:
@@ -143,7 +146,7 @@ def _conjugate_form(
     form.annotate(VerbAffix, affix_start, len(form.text))
 
     if len(spec.subjects) > 0:
-        subject_annotation = form.remove_annotation(VerbSubject, raise_if_absent=False)
+        subject_annotation = form.remove_annotation_or_none(VerbSubject)
         if subject_annotation is not None:
             subject_start = subject_annotation.start
         else:
@@ -218,7 +221,7 @@ def _adapt_stem(stem: AnnotatedString, affix: str) -> AnnotatedString:
     return stem
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _VerbFormSpecKey:
     ending: str
     tense: Tense

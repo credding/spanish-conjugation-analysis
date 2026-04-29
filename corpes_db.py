@@ -142,5 +142,4 @@ def _load_table_tsv(
 
 
 if __name__ == "__main__":
-    with connect():
-        pass
+    initialize()

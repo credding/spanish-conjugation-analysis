@@ -9,7 +9,8 @@ from conjugation import (
 )
 from corpes import CORPES
 from dle_web import DLEWeb
-from element_index import ElementIndex
+from grammar_model import Element, ElementTag, LemmaTag, Lemma
+from tagged_index import TaggedIndex
 from resources import obj_path
 
 logging.basicConfig(
@@ -18,7 +19,8 @@ logging.basicConfig(
 
 corpes = CORPES()
 dle = DLEWeb()
-element_index = ElementIndex()
+lemma_index: TaggedIndex[LemmaTag, Lemma] = TaggedIndex()
+element_index: TaggedIndex[ElementTag, Element] = TaggedIndex()
 regular_form_conjugator: VerbConjugator = RegularFormConjugator()
 regular_construction_conjugator: VerbConjugator = RegularConstructionConjugator(
     element_index

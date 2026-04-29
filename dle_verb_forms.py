@@ -1,10 +1,19 @@
 import logging
 import re
+from dataclasses import dataclass
 from typing import Iterable, cast
 
 from bs4 import Tag
 
-from grammar_model import Subject, Tense, Variant, Verb, VerbForm
+from grammar_model import (
+    BaseVerbForm,
+    Subject,
+    Tense,
+    Variant,
+    Verb,
+    VerbForm,
+    VerbTag,
+)
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
 from run_context import dle, memory
 
@@ -79,13 +88,32 @@ _REFLEXIVE_PRONOUNS = {
 }
 
 
+@dataclass
+class DLEVerbForm(BaseVerbForm):
+    subject_group: list[Subject]
+    variant: Variant | None
+    preference: int
+
+    def as_verb_form(self, verb: Verb) -> VerbForm:
+        return VerbForm(
+            self.lemma_tag,
+            self.form,
+            verb,
+            self.tense,
+            self.subject,
+            self.subject_group,
+            self.variant,
+            self.preference,
+        )
+
+
 @memory.cache
-def get_verb_forms(verb: Verb) -> list[VerbForm]:
-    _logger.info("fetching verb forms for %s", verb)
+def get_verb_forms(verb_tag: VerbTag) -> list[DLEVerbForm]:
+    _logger.info("fetching verb forms for %s", verb_tag)
 
-    page = dle.get_page(verb.base_form)
+    page = dle.get_page(verb_tag.base_form)
 
-    verb_forms: list[VerbForm] = []
+    verb_forms: list[DLEVerbForm] = []
 
     conjugation_anchor = page.document.find(attrs={"name": "conjugacion"})
     if conjugation_anchor is None:
@@ -98,14 +126,14 @@ def get_verb_forms(verb: Verb) -> list[VerbForm]:
     for mood_group in conjugation_section.find_all(class_="c-collapse"):
         mood_id: str = cast(str, mood_group["id"])
         for table_tag in mood_group.find_all("table"):
-            verb_forms.extend(_parse_conjugation_table(verb, mood_id, table_tag))
+            verb_forms.extend(_parse_conjugation_table(verb_tag, mood_id, table_tag))
 
     return verb_forms
 
 
 def _parse_conjugation_table(
-    verb: Verb, mood_id: str, table: Tag
-) -> Iterable[VerbForm]:
+    verb_tag: VerbTag, mood_id: str, table: Tag
+) -> Iterable[DLEVerbForm]:
     table_norm = _normalize_table(table)
 
     col_headers: dict[int, str] = {}
@@ -136,7 +164,7 @@ def _parse_conjugation_table(
                     form_text = cell_tag.get_text()
                     if row_header is None or row_header == "":
                         for form in _parse_form(
-                            verb, tense, Subject.IMPERSONAL, form_text
+                            verb_tag, tense, Subject.IMPERSONAL, form_text
                         ):
                             yield form
                         continue
@@ -148,7 +176,7 @@ def _parse_conjugation_table(
                         subject_forms.append(subject_forms[0])
 
                     for subject, subject_form in zip(subjects, subject_forms):
-                        for form in _parse_form(verb, tense, subject, subject_form):
+                        for form in _parse_form(verb_tag, tense, subject, subject_form):
                             yield form
 
 
@@ -183,8 +211,8 @@ def _normalize_table(table: Tag) -> list[list[Tag]]:
 
 
 def _parse_form(
-    verb: Verb, tense: Tense, subject: Subject, form: str
-) -> Iterable[VerbForm]:
+    verb_tag: VerbTag, tense: Tense, subject: Subject, form: str
+) -> Iterable[DLEVerbForm]:
     for i, form in enumerate(_FORM_DELIM_PATTERN.split(form)):
         form_parts = _FORM_PATTERN.fullmatch(form)
 
@@ -202,23 +230,23 @@ def _parse_form(
                 variant = None
                 preference = i
 
-            form = _remove_reflexive_pronoun(verb, form_parts[1], tense, subject)
+            form = _remove_reflexive_pronoun(verb_tag, form_parts[1], tense, subject)
             subject_group = _SUBJECT_GROUPS.get((tense, subject), [subject])
-            yield VerbForm(
-                verb, form, tense, subject, subject_group, variant, preference
+            yield DLEVerbForm(
+                verb_tag, form, tense, subject, subject_group, variant, preference
             )
 
         if form_parts[2]:
             subject = Subject(form_parts[2])
-            form = _remove_reflexive_pronoun(verb, form_parts[3], tense, subject)
+            form = _remove_reflexive_pronoun(verb_tag, form_parts[3], tense, subject)
             subject_group = [subject]
-            yield VerbForm(verb, form, tense, subject, subject_group, None, 0)
+            yield DLEVerbForm(verb_tag, form, tense, subject, subject_group, None, 0)
 
 
 def _remove_reflexive_pronoun(
-    verb: Verb, form: str, tense: Tense, subject: Subject
+    verb_tag: VerbTag, form: str, tense: Tense, subject: Subject
 ) -> str:
-    if not verb.is_reflexive:
+    if not verb_tag.is_reflexive:
         return form
 
     pronoun = _REFLEXIVE_PRONOUNS[subject]

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from string_analysis import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, StringAnnotation
 
 
 class PhonemeKind(Enum):
@@ -10,7 +10,7 @@ class PhonemeKind(Enum):
     WEAK_VOWEL = auto()
 
 
-@dataclass(frozen=True, eq=False, repr=False)
+@dataclass(repr=False)
 class Phoneme(StringAnnotation):
     phoneme_kind: PhonemeKind
     phoneme: str
@@ -53,15 +53,13 @@ _COMPOUND_CONSONANT_PHONEMES = {"ch": "ch", "ll": "y", "rr": "rr"}
 _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 
-def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
+def annotate_phonemes(word: AnnotatedString):
     phonemes: list[Phoneme] = []
 
     phoneme = _annotate_first_phoneme(word)
     while phoneme:
         phonemes.append(phoneme)
         phoneme = _annotate_next_phoneme(word, phoneme.stop)
-
-    return phonemes
 
 
 def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
