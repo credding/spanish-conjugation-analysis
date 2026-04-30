@@ -8,7 +8,7 @@ import spelling_analysis
 import stress_analysis
 import syllable_analysis
 from export_data import export_verb_forms_and_homonyms
-from grammar_model import PartOfSpeech, Regularity, Verb, VerbForm, VerbTag
+from grammar_model import LemmaTag, PartOfSpeech, Regularity, Verb, VerbForm
 from resources import artifacts_path, resources_path
 from run_context import (
     corpes,
@@ -131,8 +131,9 @@ def _index_verb_list(list_name: str) -> list[Verb]:
 
     result = []
     for verb_item in verb_list:
-        freq_lemma = corpes.get_lemma(VerbTag(verb_item))
-        dle_verb = dle.get_verb(VerbTag(verb_item))
+        lemma_tag = LemmaTag(verb_item, PartOfSpeech.VERB)
+        freq_lemma = corpes.get_lemma(lemma_tag)
+        dle_verb = dle.get_verb(lemma_tag)
 
         if dle_verb.tag in lemma_index:
             result.append(cast("Verb", lemma_index[dle_verb.tag].value))

@@ -2,8 +2,9 @@ import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
+import diff_analysis
 from conjugation import SpellingChange, VerbAffix, VerbConjugator, VerbSubject
-from diff_analysis import DiffAnnotation, annotate_diff
+from diff_analysis import DiffAnnotation
 from grammar_model import Regularity, VerbForm
 from run_context import element_index, lemma_index
 
@@ -70,7 +71,9 @@ def annotate_irregular_form(correct_form: VerbForm) -> None:
     lemma_index[correct_form.lemma_tag].tag(Regularity.IRREGULAR_VERB)
     element_index[correct_form.tag].tag(Regularity.IRREGULAR_FORM)
 
-    annotate_diff(IrregularForm, correct_form.annotated_form, regular_form.form)
+    diff_analysis.annotate_diff(
+        IrregularForm, correct_form.annotated_form, regular_form.form
+    )
 
 
 def _get_regular_form(correct_form: VerbForm) -> VerbForm | None:
@@ -139,7 +142,7 @@ def annotate_irregular_construction(correct_form: VerbForm) -> None:
 
     element_index[correct_form.tag].tag(Regularity.IRREGULAR_CONSTRUCTION)
 
-    annotate_diff(
+    diff_analysis.annotate_diff(
         IrregularConstruction, correct_form.annotated_form, regular_construction.form
     )
 
