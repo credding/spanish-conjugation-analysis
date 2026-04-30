@@ -33,7 +33,7 @@ def index_regular_forms(
     for i, annotated_form in enumerate(annotated_forms):
         tagged_form = element_index.setdefault(
             replace(correct_form.tag, form=annotated_form.text),
-            replace(correct_form, form=annotated_form.text, preference=i + 1),
+            replace(correct_form, form=annotated_form.text, preference=i),
         )
         regular_form = tagged_form.value
 

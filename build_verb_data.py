@@ -57,6 +57,9 @@ def main() -> None:
 def index_top_corpes_lemmas() -> None:
     _logger.info("indexing top CORPES lemmas")
 
+    verb_count = 0
+    lemma_count = 0
+
     top_lemmas = corpes.get_top_lemmas_by_freq_adj(5000)
     for freq_lemma in top_lemmas:
         if (
@@ -70,6 +73,8 @@ def index_top_corpes_lemmas() -> None:
             tagged_lemma = lemma_index.setdefault(dle_verb.tag, dle_verb.as_verb())
             if dle_verb.is_model:
                 tagged_lemma.tag(Regularity.MODEL_VERB)
+
+            verb_count += 1
         else:
             tagged_lemma = lemma_index.setdefault(freq_lemma.tag, freq_lemma.as_lemma())
 
@@ -77,9 +82,15 @@ def index_top_corpes_lemmas() -> None:
         lemma.freq_adj = freq_lemma.freq_adj
         tagged_lemma.tag(*lemma.tags)
 
+        lemma_count += 1
+
+    _logger.info("  indexed %d lemmas, %d verbs", lemma_count, verb_count)
+
 
 def index_top_corpes_elements() -> None:
     _logger.info("indexing top CORPES elements")
+
+    element_count = 0
 
     for tagged_lemma in lemma_index.lookup() - lemma_index.lookup(PartOfSpeech.VERB):
         for freq_element in corpes.get_top_elements(tagged_lemma.key):
@@ -93,12 +104,19 @@ def index_top_corpes_elements() -> None:
             element = tagged_element.value
             tagged_element.tag(*element.tags)
 
+            element_count += 1
+
+    _logger.info("  indexed %d elements", element_count)
+
 
 def index_dpd_model_verbs() -> None:
     _logger.info("indexing DPD model verbs")
 
     for verb in _index_verb_list("dpd_model_verbs.txt"):
-        lemma_index[verb.tag].tag(Regularity.MODEL_VERB)
+        tagged_lemma = lemma_index[verb.tag]
+        if Regularity.MODEL_VERB not in tagged_lemma.tags:
+            _logger.info("  tagging model verb: %s", verb.tag.base_form)
+            tagged_lemma.tag(Regularity.MODEL_VERB)
 
 
 def index_kofi_verbs() -> None:
@@ -111,10 +129,19 @@ def index_kofi_verbs() -> None:
 def _index_verb_list(list_name: str) -> list[Verb]:
     verb_list = (resources_path / list_name).read_text().splitlines()
 
+    verb_count = 0
+
     result = []
     for verb_item in verb_list:
         freq_lemma = corpes.get_lemma(VerbTag(verb_item))
         dle_verb = get_verb(VerbTag(verb_item))
+
+        if dle_verb.tag in lemma_index:
+            result.append(cast("Verb", lemma_index[dle_verb.tag].value))
+            continue
+
+        verb_count += 1
+
         tagged_verb = lemma_index.setdefault(dle_verb.tag, dle_verb.as_verb())
 
         verb = cast("Verb", tagged_verb.value)
@@ -124,6 +151,8 @@ def _index_verb_list(list_name: str) -> list[Verb]:
             tagged_verb.tag(Regularity.MODEL_VERB)
 
         result.append(verb)
+
+    _logger.info("  indexed %d verbs", verb_count)
 
     return result
 
@@ -137,6 +166,11 @@ def index_dle_model_verbs() -> None:
         for m in cast("Verb", v.value).models
     }
     for verb_tag in model_verbs:
+        if verb_tag in lemma_index:
+            continue
+
+        _logger.info("  indexing model verb: %s", verb_tag.base_form)
+
         freq_lemma = corpes.get_lemma(verb_tag)
         dle_verb = get_verb(verb_tag)
         tagged_verb = lemma_index.setdefault(verb_tag, dle_verb.as_verb())
@@ -149,6 +183,8 @@ def index_dle_model_verbs() -> None:
 def index_dle_verb_forms() -> None:
     _logger.info("indexing DLE verb forms")
 
+    form_count = 0
+
     for tagged_verb in lemma_index.lookup(PartOfSpeech.VERB):
         verb = cast("Verb", tagged_verb.value)
         for dle_form in get_verb_forms(verb.tag):
@@ -158,6 +194,10 @@ def index_dle_verb_forms() -> None:
 
             form = cast("VerbForm", tagged_element.value)
             tagged_element.tag(*form.tags, Regularity.CORRECT_FORM)
+
+            form_count += 1
+
+    _logger.info("  indexed %d verb forms", form_count)
 
 
 def index_regular_verb_forms() -> None:
@@ -236,14 +276,15 @@ def tag_verb_form_homonym_lemmas() -> None:
 
 
 def lookup_dle_homonym_lemmas() -> None:
-    _logger.info("looking up homonyms in DLE")
+    _logger.info("looking up homonym lemmas in DLE")
 
-    for tagged_lemma in lemma_index.lookup(Homonym.HOMONYM):
+    tagged_verbs = lemma_index.lookup(PartOfSpeech.VERB)
+    for tagged_lemma in lemma_index.lookup(Homonym.HOMONYM) - tagged_verbs:
         dle_lemma = get_lemma(tagged_lemma.key)
 
         if dle_lemma is None:
             _logger.info(
-                "removing lemma not found in DLE: %s (%s)",
+                "  removing lemma not found in DLE: %s (%s)",
                 tagged_lemma.value.base_form,
                 tagged_lemma.value.part_of_speech.name.lower(),
             )
@@ -265,10 +306,15 @@ def tag_shared_forms() -> None:
 def tag_verb_form_homonym_elements() -> None:
     _logger.info("tagging verb form homonym elements")
 
+    homonym_count = 0
+
     for tagged_form in element_index.lookup(PartOfSpeech.VERB):
         for homonym in spelling_analysis.tag_homonyms(tagged_form.key):
             if homonym.part_of_speech is not PartOfSpeech.VERB:
                 spelling_analysis.tag_homonyms(homonym)
+                homonym_count += 1
+
+    _logger.info("  tagged %d verb form homonyms", homonym_count)
 
 
 def export_verb_data() -> None:
@@ -277,6 +323,20 @@ def export_verb_data() -> None:
     export_data = export_verb_forms_and_homonyms()
     export_json = export_data.model_dump_json(ensure_ascii=False, exclude_defaults=True)
     (artifacts_path / "verb_data.json").write_text(export_json)
+
+    _logger.info(
+        "  exported %d lemmas, %d verbs",
+        len(export_data.lemmas),
+        sum(1 for x in export_data.lemmas if x.part_of_speech is PartOfSpeech.VERB),
+    )
+
+    _logger.info(
+        "  exported %d elements, %d verb forms",
+        len(export_data.elements),
+        sum(
+            1 for x in export_data.elements if x.id.part_of_speech is PartOfSpeech.VERB
+        ),
+    )
 
 
 if __name__ == "__main__":

@@ -60,6 +60,9 @@ class TaggedIndex[K: Hashable, V]:
     def __getitem__(self, key: K) -> TaggedItem[K, V]:
         return self._items[key]
 
+    def __contains__(self, key: K) -> bool:
+        return key in self._items
+
     def setdefault(self, key: K, value: V) -> TaggedItem[K, V]:
         entry = self._items.get(key)
         if entry is not None:
