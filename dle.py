@@ -1,19 +1,119 @@
 import logging
 import re
 from typing import TYPE_CHECKING, cast
+from urllib.parse import quote
 
-from dle_model import DLEVerbForm
+from dle_model import DLELemma, DLEVerb, DLEVerbForm
+from grammar_model import LemmaTag, PartOfSpeech, Subject, Tense, Variant, VerbTag
+from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+from run_context import dle_web, memory
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from bs4 import Tag
 
-from grammar_model import Subject, Tense, Variant, VerbTag
-from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
-from run_context import dle, memory
+    from dle_web import DLEPage
 
 _logger = logging.getLogger(__name__)
+
+
+_PART_OF_SPEECH_ABBRS = {
+    PartOfSpeech.ADJECTIVE: ["adj."],
+    PartOfSpeech.ADVERB: ["adv."],
+    PartOfSpeech.AFFIX: ["suf.", "pref."],
+    PartOfSpeech.ARTICLE: ["art."],
+    PartOfSpeech.CONJUNCTION: ["conj."],
+    PartOfSpeech.CONTRACTION: ["contracc."],
+    PartOfSpeech.QUANTIFIER: ["adj."],
+    PartOfSpeech.DEMONSTRATIVE: ["adj. dem.", "pron. dem."],
+    PartOfSpeech.INTERJECTION: ["interj."],
+    PartOfSpeech.INTERROGATIVE: ["adj. interrog.", "pron. interrog."],
+    PartOfSpeech.NUMERAL: ["m.", "f."],
+    PartOfSpeech.POSSESSIVE: ["adj. poses.", "pron. poses."],
+    PartOfSpeech.PREPOSITION: ["prep."],
+    PartOfSpeech.PERSONAL_PRONOUN: ["pron. person."],
+    PartOfSpeech.RELATIVE: ["adj. relat.", "pron. relat."],
+    PartOfSpeech.NOUN: ["m.", "f."],
+    PartOfSpeech.VERB: ["aux.", "copulat.", "impers.", "intr.", "prnl.", "tr."],
+}
+
+_NUMERAL_PATTERN = re.compile(r"^\d+. ")
+
+
+@memory.cache
+def get_lemma(lemma_tag: LemmaTag) -> DLELemma | None:
+    _logger.info("fetching lemma data for %s", lemma_tag)
+
+    page = dle_web.get_page(lemma_tag.base_form)
+
+    dle_url = _get_dle_url(page, lemma_tag)
+    if dle_url is None:
+        return None
+
+    return DLELemma(page.word, lemma_tag.part_of_speech, dle_url)
+
+
+def _get_dle_url(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
+    article_id = _find_article_id(page, lemma_tag)
+    if article_id is None:
+        return None
+
+    return f"{page.url}#{quote(article_id)}"
+
+
+def _find_article_id(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
+    abbrs = _PART_OF_SPEECH_ABBRS[lemma_tag.part_of_speech]
+
+    for tag in page.document.find_all(class_="c-definitions__item"):
+        def_text = _NUMERAL_PATTERN.sub("", tag.get_text())
+
+        for abbr in abbrs:
+            if def_text.startswith(abbr):
+                article = tag.find_parent("article")
+                if article is None:
+                    msg = f"missing article for {lemma_tag}"
+                    raise ValueError(msg)
+
+                article_id = article["id"]
+                if not isinstance(article_id, str):
+                    msg = f"invalid article id for {lemma_tag}"
+                    raise ValueError(msg)
+
+                return article_id
+
+    return None
+
+
+_CONJUG_MODELO_PATTERN = re.compile(r"\bConjug\. modelo\b")
+_CONJUG_C_PATTERN = re.compile(r"\bConjug\. c\. (\w+\b(?: o c\. \w+\b)*)")
+
+
+@memory.cache
+def get_verb(lemma_tag: LemmaTag) -> DLEVerb:
+    _logger.info("fetching verb data for %s", lemma_tag)
+
+    page = dle_web.get_page(lemma_tag.base_form)
+
+    dle_url = _get_dle_url(page, lemma_tag)
+    if dle_url is None:
+        msg = f"could not find DLE url for {lemma_tag}"
+        raise ValueError(msg)
+
+    is_model = False
+    models: list[VerbTag] = []
+
+    for tag in page.document.find_all(class_="c-text-intro"):
+        conjug_modelo = _CONJUG_MODELO_PATTERN.search(tag.get_text())
+        if conjug_modelo is not None:
+            is_model = True
+
+        conjug_c = _CONJUG_C_PATTERN.search(tag.get_text())
+        if conjug_c is not None:
+            models.extend(VerbTag(x) for x in conjug_c.group(1).split(" o c. "))
+
+    return DLEVerb(page.word, dle_url, is_model, models)
+
 
 _TENSES = {
     ("Formas-no-personales", "Infinitivo"): Tense.INFINITIVE,
@@ -88,7 +188,7 @@ _REFLEXIVE_PRONOUNS = {
 def get_verb_forms(verb_tag: VerbTag) -> list[DLEVerbForm]:
     _logger.info("fetching verb forms for %s", verb_tag)
 
-    page = dle.get_page(verb_tag.base_form)
+    page = dle_web.get_page(verb_tag.base_form)
 
     verb_forms: list[DLEVerbForm] = []
 

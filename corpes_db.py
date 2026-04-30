@@ -3,7 +3,10 @@ import logging
 import sqlite3
 from contextlib import closing
 
+import logging_config
 from resources import obj_path, resources_path
+
+_ = logging_config
 
 _logger = logging.getLogger(__name__)
 

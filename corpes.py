@@ -1,8 +1,8 @@
 from contextlib import closing
-from dataclasses import dataclass
 
 import corpes_db
-from grammar_model import BaseElement, BaseLemma, Element, Lemma, LemmaTag, PartOfSpeech
+from corpes_model import FreqElement, FreqLemma
+from grammar_model import LemmaTag, PartOfSpeech
 
 _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "A": PartOfSpeech.ADJECTIVE,
@@ -27,20 +27,6 @@ _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "V": PartOfSpeech.VERB,
 }
 _PARTS_OF_SPEECH_INV = {v: k for k, v in _PARTS_OF_SPEECH.items()}
-
-
-@dataclass
-class FreqLemma(BaseLemma):
-    freq_adj: float
-
-    def as_lemma(self) -> Lemma:
-        return Lemma(self.base_form, self.part_of_speech, freq_adj=self.freq_adj)
-
-
-@dataclass
-class FreqElement(BaseElement):
-    def as_element(self, lemma: Lemma) -> Element:
-        return Element(self.lemma_tag, self.form, lemma)
 
 
 class CORPES:

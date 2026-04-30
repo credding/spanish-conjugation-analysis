@@ -1,8 +1,6 @@
-import logging
-from typing import TYPE_CHECKING
-
 from joblib import Memory
 
+import logging_config
 from conjugation import (
     RegularConstructionConjugator,
     RegularFormConjugator,
@@ -10,20 +8,16 @@ from conjugation import (
 )
 from corpes import CORPES
 from dle_web import DLEWeb
+from grammar_model import Element, ElementTag, Lemma, LemmaTag
 from resources import obj_path
 from tagged_index import TaggedIndex
 
-if TYPE_CHECKING:
-    from grammar_model import Element, ElementTag, Lemma, LemmaTag
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+_ = logging_config
 
 corpes = CORPES()
-dle = DLEWeb()
-lemma_index: TaggedIndex[LemmaTag, Lemma] = TaggedIndex()
-element_index: TaggedIndex[ElementTag, Element] = TaggedIndex()
+dle_web = DLEWeb()
+lemma_index: TaggedIndex[LemmaTag, Lemma] = TaggedIndex[LemmaTag, Lemma]()
+element_index: TaggedIndex[ElementTag, Element] = TaggedIndex[ElementTag, Element]()
 regular_form_conjugator: VerbConjugator = RegularFormConjugator()
 regular_construction_conjugator: VerbConjugator = RegularConstructionConjugator(
     element_index

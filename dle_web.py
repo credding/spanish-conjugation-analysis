@@ -19,6 +19,10 @@ class DLEPage:
     content: bytes
 
     @property
+    def url(self) -> str:
+        return _get_page_url(self.word)
+
+    @property
     def document(self) -> BeautifulSoup:
         return BeautifulSoup(self.content, "html.parser")
 
@@ -50,13 +54,17 @@ class DLEWeb:
         return page
 
     def _get_page_from_web(self, word: str) -> DLEPage:
-        request_url = f"https://dle.rae.es/{quote(word)}"
+        request_url = _get_page_url(word)
         _logger.info("get %s %s", word, request_url)
 
         response = self._session.get(request_url)
         response_word = unquote(PurePosixPath(urlsplit(response.url).path).parts[-1])
 
         return DLEPage(response_word, response.content)
+
+
+def _get_page_url(word: str) -> str:
+    return f"https://dle.rae.es/{quote(word)}"
 
 
 def _get_page_from_disk(word: str) -> DLEPage | None:
