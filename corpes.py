@@ -42,13 +42,19 @@ class CORPES:
             )
             return [_map_lemma(x) for x in cur]
 
-    def get_top_elements(self, lemma_tag: LemmaTag) -> list[FreqElement]:
+    def get_top_elements(
+        self, lemma_tag: LemmaTag, gt_freq: int = 0
+    ) -> list[FreqElement]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
                 "SELECT form, lemma, tag FROM freq_elements "
-                "WHERE lemma = ? AND tag LIKE ? || '%' AND freq_norm_without_punc > 0 "
+                "WHERE lemma = ? AND tag LIKE ? || '%' AND freq_norm_without_punc > ? "
                 "ORDER BY id;",
-                (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
+                (
+                    lemma_tag.base_form,
+                    _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech],
+                    gt_freq,
+                ),
             )
             return [_map_element(x) for x in cur]
 

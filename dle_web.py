@@ -56,7 +56,7 @@ class DLEWeb:
 
     def _get_page_from_web(self, word: str) -> DLEPage:
         request_url = _get_page_url(word)
-        _logger.info("get %s %s", word, request_url)
+        _logger.info("get DLE page: %s %s", word, request_url)
 
         response = self._session.get(request_url)
         response_word = unquote(PurePosixPath(urlsplit(response.url).path).parts[-1])

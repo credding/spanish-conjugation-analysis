@@ -50,6 +50,7 @@ class TaggedIndex[K: Hashable, V]:
     def __init__(self) -> None:
         self._items: dict[K, TaggedItem[K, V]] = {}
         self._lookup: dict[Hashable, set[TaggedItem[K, V]]] = defaultdict(set)
+        self._removed_items = set[TaggedItem[K, V]]()
 
     def __getitem__(self, key: K) -> TaggedItem[K, V]:
         return self._items[key]
@@ -70,11 +71,10 @@ class TaggedIndex[K: Hashable, V]:
         entry = self._items.pop(key, None)
         if entry is None:
             return
-        for tag_set in self._lookup.values():
-            tag_set.discard(entry)
-        return
+        self._removed_items.add(entry)
 
     def lookup(self, *tags: Hashable) -> set[TaggedItem[K, V]]:
         if len(tags) == 0:
             return set(self._items.values())
-        return set.intersection(*(self._lookup[tag] for tag in tags))
+        result = set.intersection(*(self._lookup[tag] for tag in tags))
+        return result - self._removed_items

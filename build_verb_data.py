@@ -30,6 +30,10 @@ from tagged_index import TaggedIndex
 _logger = logging.getLogger(__name__)
 
 
+TOP_LEMMAS_SEARCH_LIMIT = 5_000
+TOP_ELEMENTS_FREQ_THRESHOLD = 10
+
+
 def main(ctx: Context) -> None:
     ctx.index_top_corpes_lemmas()
     ctx.index_top_corpes_elements()
@@ -74,10 +78,10 @@ class Context:
     def index_top_corpes_lemmas(self) -> None:
         _logger.info("indexing top CORPES lemmas")
 
-        verb_count = 0
         lemma_count = 0
+        verb_count = 0
 
-        top_lemmas = self._corpes.get_top_lemmas_by_freq_adj(5000)
+        top_lemmas = self._corpes.get_top_lemmas_by_freq_adj(TOP_LEMMAS_SEARCH_LIMIT)
         for freq_lemma in top_lemmas:
             if (
                 freq_lemma.part_of_speech is PartOfSpeech.NOUN
@@ -112,10 +116,13 @@ class Context:
 
         element_count = 0
 
-        for tagged_lemma in self._lemma_index.lookup() - self._lemma_index.lookup(
-            PartOfSpeech.VERB
-        ):
-            for freq_element in self._corpes.get_top_elements(tagged_lemma.key):
+        non_verb_lemmas = self._lemma_index.lookup()
+        non_verb_lemmas -= self._lemma_index.lookup(PartOfSpeech.VERB)
+        for tagged_lemma in non_verb_lemmas:
+            top_elements = self._corpes.get_top_elements(
+                tagged_lemma.key, TOP_ELEMENTS_FREQ_THRESHOLD
+            )
+            for freq_element in top_elements:
                 if not (freq_element.form.isalpha() and freq_element.form.islower()):
                     continue
 
@@ -234,9 +241,9 @@ class Context:
     def analyze_irregular_verb_form_affixes(self) -> None:
         _logger.info("analyzing irregular verb form affixes")
 
-        for tagged_form in self._element_index.lookup(
-            Regularity.CORRECT_FORM
-        ) - self._element_index.lookup(Regularity.REGULAR_FORM):
+        irregular_verb_forms = self._element_index.lookup(Regularity.CORRECT_FORM)
+        irregular_verb_forms -= self._element_index.lookup(Regularity.REGULAR_FORM)
+        for tagged_form in irregular_verb_forms:
             self._conjugation_analyzer.annotate_irregular_affix(
                 cast("VerbForm", tagged_form.value)
             )
@@ -259,9 +266,9 @@ class Context:
                 cast("VerbForm", tagged_form.value)
             )
 
-        for tagged_verb in self._lemma_index.lookup(
-            PartOfSpeech.VERB
-        ) - self._lemma_index.lookup(Regularity.IRREGULAR_VERB):
+        regular_verbs = self._lemma_index.lookup(PartOfSpeech.VERB)
+        regular_verbs -= self._lemma_index.lookup(Regularity.IRREGULAR_VERB)
+        for tagged_verb in regular_verbs:
             tagged_verb.tag(Regularity.REGULAR_VERB)
 
     def annotate_irregular_verb_form_constructions(self) -> None:
@@ -292,22 +299,24 @@ class Context:
     def lookup_dle_homonym_lemmas(self) -> None:
         _logger.info("looking up homonym lemmas in DLE")
 
-        tagged_verbs = self._lemma_index.lookup(PartOfSpeech.VERB)
-        for tagged_lemma in self._lemma_index.lookup(Homonym.HOMONYM) - tagged_verbs:
+        removed_count = 0
+
+        non_verb_homonyms = self._lemma_index.lookup(Homonym.HOMONYM)
+        non_verb_homonyms -= self._lemma_index.lookup(PartOfSpeech.VERB)
+        for tagged_lemma in non_verb_homonyms:
             dle_lemma = self._dle.get_lemma(tagged_lemma.key)
 
             if dle_lemma is None:
-                _logger.info(
-                    "removing lemma not found in DLE: %s (%s)",
-                    tagged_lemma.value.base_form,
-                    tagged_lemma.value.part_of_speech.name.lower(),
-                )
                 self._lemma_index.remove(tagged_lemma.key)
                 for tagged_element in self._element_index.lookup(tagged_lemma.key):
                     self._element_index.remove(tagged_element.key)
+
+                removed_count += 1
                 continue
 
             tagged_lemma.value.dle_url = dle_lemma.dle_url
+
+        _logger.info("removed %d lemmas not found in DLE", removed_count)
 
     def tag_shared_forms(self) -> None:
         _logger.info("tagging shared forms")
