@@ -1,11 +1,9 @@
 from abc import ABC
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Concatenate
+from typing import Concatenate
 
 from annotated_string import AnnotatedString, StringAnnotation
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 @dataclass(repr=False)

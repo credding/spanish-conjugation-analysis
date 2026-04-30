@@ -1,6 +1,6 @@
 from contextlib import closing
 
-import corpes_db
+from corpes_db import CORPESDB
 from corpes_model import FreqElement, FreqLemma
 from grammar_model import LemmaTag, PartOfSpeech
 
@@ -30,9 +30,7 @@ _PARTS_OF_SPEECH_INV = {v: k for k, v in _PARTS_OF_SPEECH.items()}
 
 
 class CORPES:
-    def __init__(self) -> None:
-        corpes_db.initialize()
-
+    def __init__(self, corpes_db: CORPESDB) -> None:
         self._conn = corpes_db.connect()
 
     def get_top_lemmas_by_freq_adj(self, n: int = -1) -> list[FreqLemma]:

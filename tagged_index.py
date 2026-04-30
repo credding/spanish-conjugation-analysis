@@ -1,9 +1,6 @@
 from collections import defaultdict
-from dataclasses import InitVar, dataclass, field
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Hashable
+from collections.abc import Hashable
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,19 +11,16 @@ class Relationship:
 
 @dataclass(eq=False)
 class TaggedItem[K: Hashable, V]:
-    index: InitVar[TaggedIndex[K, V]]
+    index: TaggedIndex[K, V]
     key: K
     value: V
 
     tags: set[Hashable] = field(default_factory=set, init=False)
 
-    def __post_init__(self, index: TaggedIndex[K, V]) -> None:
-        self._index = index
-
     def tag(self, *tags: Hashable) -> None:
         self.tags.update(tags)
         for tag in tags:
-            self._index._lookup[tag].add(self)  # noqa: SLF001
+            self.index._lookup[tag].add(self)  # noqa: SLF001
 
     def get_tags[T: Hashable](self, tag_type: type[T]) -> set[T]:
         return {x for x in self.tags if isinstance(x, tag_type)}
@@ -49,7 +43,7 @@ class TaggedItem[K: Hashable, V]:
         other.tag(Relationship(tag, self.key))
 
     def get_related(self, tag: Hashable) -> set[TaggedItem[K, V]]:
-        return self._index.lookup(Relationship(tag, self.key))
+        return self.index.lookup(Relationship(tag, self.key))
 
 
 class TaggedIndex[K: Hashable, V]:

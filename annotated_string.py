@@ -1,10 +1,7 @@
 from abc import ABC
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from functools import total_ordering
-from typing import TYPE_CHECKING, Concatenate
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from typing import Concatenate
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,7 +12,6 @@ class StringAnnotationKey:
 
 
 @dataclass(repr=False)
-@total_ordering
 class StringAnnotation(ABC):
     string: AnnotatedString
     start: int

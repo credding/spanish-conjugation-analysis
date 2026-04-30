@@ -1,21 +1,41 @@
 import logging
 import re
-from typing import TYPE_CHECKING, cast
+from collections.abc import Iterable
+from pathlib import Path
+from typing import cast
 from urllib.parse import quote
 
+import joblib
+from bs4 import Tag
+
 from dle_model import DLELemma, DLEVerb, DLEVerbForm
+from dle_web import DLEPage, DLEWeb
 from grammar_model import LemmaTag, PartOfSpeech, Subject, Tense, Variant, VerbTag
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
-from run_context import dle_web, memory
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-    from bs4 import Tag
-
-    from dle_web import DLEPage
 
 _logger = logging.getLogger(__name__)
+
+
+class DLE:
+    def __init__(self, dle_web: DLEWeb, cache_dir: Path | None = None) -> None:
+        self._dle_web = dle_web
+
+        memory = joblib.Memory(cache_dir, verbose=0)
+        self._get_lemma = memory.cache(_get_lemma)
+        self._get_verb = memory.cache(_get_verb)
+        self._get_verb_forms = memory.cache(_get_verb_forms)
+
+    def get_lemma(self, lemma_tag: LemmaTag) -> DLELemma | None:
+        page = self._dle_web.get_page(lemma_tag.base_form)
+        return self._get_lemma(page, lemma_tag)
+
+    def get_verb(self, lemma_tag: LemmaTag) -> DLEVerb:
+        page = self._dle_web.get_page(lemma_tag.base_form)
+        return self._get_verb(page, lemma_tag)
+
+    def get_verb_forms(self, verb_tag: VerbTag) -> list[DLEVerbForm]:
+        page = self._dle_web.get_page(verb_tag.base_form)
+        return self._get_verb_forms(page, verb_tag)
 
 
 _PART_OF_SPEECH_ABBRS = {
@@ -41,11 +61,8 @@ _PART_OF_SPEECH_ABBRS = {
 _NUMERAL_PATTERN = re.compile(r"^\d+. ")
 
 
-@memory.cache
-def get_lemma(lemma_tag: LemmaTag) -> DLELemma | None:
-    _logger.info("fetching lemma data for %s", lemma_tag)
-
-    page = dle_web.get_page(lemma_tag.base_form)
+def _get_lemma(page: DLEPage, lemma_tag: LemmaTag) -> DLELemma | None:
+    _logger.info("parsing lemma data for %s", lemma_tag)
 
     dle_url = _get_dle_url(page, lemma_tag)
     if dle_url is None:
@@ -89,11 +106,8 @@ _CONJUG_MODELO_PATTERN = re.compile(r"\bConjug\. modelo\b")
 _CONJUG_C_PATTERN = re.compile(r"\bConjug\. c\. (\w+\b(?: o c\. \w+\b)*)")
 
 
-@memory.cache
-def get_verb(lemma_tag: LemmaTag) -> DLEVerb:
-    _logger.info("fetching verb data for %s", lemma_tag)
-
-    page = dle_web.get_page(lemma_tag.base_form)
+def _get_verb(page: DLEPage, lemma_tag: LemmaTag) -> DLEVerb:
+    _logger.info("parsing verb data for %s", lemma_tag)
 
     dle_url = _get_dle_url(page, lemma_tag)
     if dle_url is None:
@@ -184,11 +198,8 @@ _REFLEXIVE_PRONOUNS = {
 }
 
 
-@memory.cache
-def get_verb_forms(verb_tag: VerbTag) -> list[DLEVerbForm]:
-    _logger.info("fetching verb forms for %s", verb_tag)
-
-    page = dle_web.get_page(verb_tag.base_form)
+def _get_verb_forms(page: DLEPage, verb_tag: VerbTag) -> list[DLEVerbForm]:
+    _logger.info("parsing verb forms for %s", verb_tag)
 
     verb_forms: list[DLEVerbForm] = []
 

@@ -1,15 +1,11 @@
 import re
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
-import diff_analysis
+from annotated_string import AnnotatedString
 from conjugation import SpellingChange, VerbAffix, VerbConjugator, VerbSubject
-from diff_analysis import DiffAnnotation
-from grammar_model import Regularity, VerbForm
-from run_context import element_index, lemma_index
-
-if TYPE_CHECKING:
-    from annotated_string import AnnotatedString
+from diff_analysis import DiffAnnotation, annotate_diff
+from grammar_model import ElementIndex, LemmaIndex, Regularity, VerbForm
 
 
 @dataclass(repr=False)
@@ -22,76 +18,122 @@ class IrregularConstruction(DiffAnnotation):
     pass
 
 
-def index_regular_forms(
-    correct_form: VerbForm, regular_conjugator: VerbConjugator, regular_tag: Regularity
-) -> None:
-    annotated_forms = regular_conjugator.conjugate(
-        correct_form.lemma_tag,
-        correct_form.tense,
-        correct_form.subject,
-        correct_form.variant,
-    )
-    for i, annotated_form in enumerate(annotated_forms):
-        tagged_form = element_index.setdefault(
-            replace(correct_form.tag, form=annotated_form.text),
-            replace(correct_form, form=annotated_form.text, preference=i),
+class ConjugationAnalyzer:
+    def __init__(self, lemma_index: LemmaIndex, element_index: ElementIndex) -> None:
+        self._lemma_index = lemma_index
+        self._element_index = element_index
+
+    def index_regular_forms(
+        self,
+        correct_form: VerbForm,
+        regular_conjugator: VerbConjugator,
+        regular_tag: Regularity,
+    ) -> None:
+        annotated_forms = regular_conjugator.conjugate(
+            correct_form.lemma_tag,
+            correct_form.tense,
+            correct_form.subject,
+            correct_form.variant,
         )
-        regular_form = tagged_form.value
-
-        tagged_form.tag(*regular_form.tags, regular_tag)
-
-        for annotation in annotated_form.annotations:
-            regular_form.annotated_form.add_annotation(
-                replace(annotation, string=regular_form.annotated_form)
+        for i, annotated_form in enumerate(annotated_forms):
+            tagged_form = self._element_index.setdefault(
+                replace(correct_form.tag, form=annotated_form.text),
+                replace(correct_form, form=annotated_form.text, preference=i),
             )
+            regular_form = tagged_form.value
 
-        if Regularity.CORRECT_FORM not in tagged_form.tags:
-            tagged_form.tag(Regularity.INCORRECT_FORM)
+            tagged_form.tag(*regular_form.tags, regular_tag)
 
-        if annotated_form.get_annotation_or_none(SpellingChange):
-            tagged_form.tag(Regularity.SPELLING_CHANGE)
+            for annotation in annotated_form.annotations:
+                regular_form.annotated_form.add_annotation(
+                    replace(annotation, string=regular_form.annotated_form)
+                )
 
+            if Regularity.CORRECT_FORM not in tagged_form.tags:
+                tagged_form.tag(Regularity.INCORRECT_FORM)
 
-def annotate_irregular_affix(correct_form: VerbForm) -> None:
-    regular_form = _get_regular_form(correct_form)
-    if regular_form is None:
-        return
+            if annotated_form.get_annotation_or_none(SpellingChange):
+                tagged_form.tag(Regularity.SPELLING_CHANGE)
 
-    _annotate_irregular_affix(correct_form.annotated_form, regular_form.annotated_form)
-    _annotate_irregular_subject(
-        correct_form.annotated_form, regular_form.annotated_form
-    )
+    def annotate_irregular_affix(self, correct_form: VerbForm) -> None:
+        regular_form = self._get_regular_form(correct_form)
+        if regular_form is None:
+            return
 
+        _annotate_irregular_affix(
+            correct_form.annotated_form, regular_form.annotated_form
+        )
+        _annotate_irregular_subject(
+            correct_form.annotated_form, regular_form.annotated_form
+        )
 
-def annotate_irregular_form(correct_form: VerbForm) -> None:
-    regular_form = _get_regular_form(correct_form)
-    if regular_form is None:
-        return
+    def annotate_irregular_form(self, correct_form: VerbForm) -> None:
+        regular_form = self._get_regular_form(correct_form)
+        if regular_form is None:
+            return
 
-    lemma_index[correct_form.lemma_tag].tag(Regularity.IRREGULAR_VERB)
-    element_index[correct_form.tag].tag(Regularity.IRREGULAR_FORM)
+        self._lemma_index[correct_form.lemma_tag].tag(Regularity.IRREGULAR_VERB)
+        self._element_index[correct_form.tag].tag(Regularity.IRREGULAR_FORM)
 
-    diff_analysis.annotate_diff(
-        IrregularForm, correct_form.annotated_form, regular_form.form
-    )
+        annotate_diff(IrregularForm, correct_form.annotated_form, regular_form.form)
 
+    def _get_regular_form(self, correct_form: VerbForm) -> VerbForm | None:
+        tagged_correct_form = self._element_index[correct_form.tag]
+        if Regularity.REGULAR_FORM in tagged_correct_form.tags:
+            return None
 
-def _get_regular_form(correct_form: VerbForm) -> VerbForm | None:
-    tagged_correct_form = element_index[correct_form.tag]
-    if Regularity.REGULAR_FORM in tagged_correct_form.tags:
-        return None
+        regular_entries = self._element_index.lookup(
+            correct_form.lemma_tag,
+            correct_form.tense,
+            correct_form.subject,
+            *((correct_form.variant,) if correct_form.variant else ()),
+            Regularity.REGULAR_FORM,
+        )
 
-    regular_entries = element_index.lookup(
-        correct_form.lemma_tag,
-        correct_form.tense,
-        correct_form.subject,
-        *((correct_form.variant,) if correct_form.variant else ()),
-        Regularity.REGULAR_FORM,
-    )
+        if len(regular_entries) != 1:
+            msg = f"expected 1 regular form, found {len(regular_entries)}"
+            raise ValueError(msg)
+        tagged_regular_form = regular_entries.pop()
+        return cast("VerbForm", tagged_regular_form.value)
 
-    assert len(regular_entries) == 1  # noqa: S101
-    tagged_regular_form = regular_entries.pop()
-    return cast("VerbForm", tagged_regular_form.value)
+    def annotate_irregular_construction(self, correct_form: VerbForm) -> None:
+        regular_construction = self._get_regular_construction(correct_form)
+        if regular_construction is None:
+            return
+
+        self._element_index[correct_form.tag].tag(Regularity.IRREGULAR_CONSTRUCTION)
+
+        annotate_diff(
+            IrregularConstruction,
+            correct_form.annotated_form,
+            regular_construction.form,
+        )
+
+    def _get_regular_construction(self, correct_form: VerbForm) -> VerbForm | None:
+        tagged_correct_form = self._element_index[correct_form.tag]
+        if Regularity.REGULAR_CONSTRUCTION in tagged_correct_form.tags:
+            return None
+
+        regular_entries = sorted(
+            self._element_index.lookup(
+                correct_form.lemma_tag,
+                correct_form.tense,
+                correct_form.subject,
+                *((correct_form.variant,) if correct_form.variant else ()),
+                Regularity.REGULAR_CONSTRUCTION,
+            ),
+            key=lambda x: x.value.preference,
+        )
+
+        if len(regular_entries) == 0:
+            return None
+
+        tagged_regular_form = next(
+            (f for i, f in enumerate(regular_entries) if i == correct_form.preference),
+            regular_entries[0],
+        )
+
+        return cast("VerbForm", tagged_regular_form.value)
 
 
 _I_PATTERN = r"[iíy]?"
@@ -105,7 +147,12 @@ def _annotate_irregular_affix(
     regular_affix = regular_form.get_annotation(VerbAffix)
 
     affix_start_match = _AFFIX_START_PATTERN.search(regular_affix.text)
-    assert affix_start_match is not None  # noqa: S101
+    if affix_start_match is None:
+        msg = (
+            f"expected regular affix to match {_AFFIX_START_PATTERN.pattern}: "
+            f"{regular_affix.text}"
+        )
+        raise ValueError(msg)
 
     affix_pattern = (
         _VERB_CONSONANT_PATTERN + regular_affix.text[affix_start_match.end() :] + "$"
@@ -114,7 +161,9 @@ def _annotate_irregular_affix(
         affix_pattern = _I_PATTERN + affix_pattern
 
     affix_match = re.search(affix_pattern, correct_form.text)
-    assert affix_match is not None  # noqa: S101
+    if affix_match is None:
+        msg = f"expected irregular form to match {affix_pattern}: {correct_form.text}"
+        raise ValueError(msg)
 
     correct_form.annotate(VerbAffix, affix_match.start(), len(correct_form.text))
 
@@ -133,42 +182,3 @@ def _annotate_irregular_subject(
         subject_start = affix.start
 
     correct_form.annotate(VerbSubject, subject_start, len(correct_form.text))
-
-
-def annotate_irregular_construction(correct_form: VerbForm) -> None:
-    regular_construction = _get_regular_construction(correct_form)
-    if regular_construction is None:
-        return
-
-    element_index[correct_form.tag].tag(Regularity.IRREGULAR_CONSTRUCTION)
-
-    diff_analysis.annotate_diff(
-        IrregularConstruction, correct_form.annotated_form, regular_construction.form
-    )
-
-
-def _get_regular_construction(correct_form: VerbForm) -> VerbForm | None:
-    tagged_correct_form = element_index[correct_form.tag]
-    if Regularity.REGULAR_CONSTRUCTION in tagged_correct_form.tags:
-        return None
-
-    regular_entries = sorted(
-        element_index.lookup(
-            correct_form.lemma_tag,
-            correct_form.tense,
-            correct_form.subject,
-            *((correct_form.variant,) if correct_form.variant else ()),
-            Regularity.REGULAR_CONSTRUCTION,
-        ),
-        key=lambda x: x.value.preference,
-    )
-
-    if len(regular_entries) == 0:
-        return None
-
-    tagged_regular_form = next(
-        (f for i, f in enumerate(regular_entries) if i == correct_form.preference),
-        regular_entries[0],
-    )
-
-    return cast("VerbForm", tagged_regular_form.value)

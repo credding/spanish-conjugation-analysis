@@ -2,12 +2,9 @@ import csv
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-import diff_analysis
-import phonetic_analysis
 from annotated_string import AnnotatedString, StringAnnotation
-from diff_analysis import DiffAnnotation
+from diff_analysis import DiffAnnotation, annotate_diff
 from grammar_model import (
     Element,
     ElementTag,
@@ -23,11 +20,10 @@ from phonetic_analysis import (
     VOWELS,
     Phoneme,
     PhonemeKind,
+    annotate_phonemes,
 )
 from resources import resources_path
-
-if TYPE_CHECKING:
-    from tagged_index import TaggedIndex
+from tagged_index import TaggedIndex
 
 
 @dataclass(repr=False)
@@ -112,7 +108,7 @@ def _conjugate_form(
     from_form: AnnotatedString, spec: _VerbFormSpec
 ) -> AnnotatedString | None:
     stem = from_form[:]
-    phonetic_analysis.annotate_phonemes(stem)
+    annotate_phonemes(stem)
 
     if spec.truncate_len > 0:
         assert spec.truncate_pattern is not None  # noqa: S101
@@ -156,7 +152,7 @@ def _conjugate_form(
     if spec.variant is not None:
         form.annotate(VerbVariant, len(stem.text), len(stem.text) + 2)
 
-    diff_analysis.annotate_diff(SpellingChange, form, simple_form)
+    annotate_diff(SpellingChange, form, simple_form)
 
     form.remove_annotations(Phoneme)
     return form

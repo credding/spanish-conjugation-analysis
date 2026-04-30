@@ -1,13 +1,17 @@
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import total_ordering
 from typing import Any, Self
 
 from annotated_string import AnnotatedString
+from tagged_index import TaggedIndex, TaggedItem
+
+type LemmaIndex = TaggedIndex[LemmaTag, Lemma]
+type TaggedLemma = TaggedItem[LemmaTag, Lemma]
+type ElementIndex = TaggedIndex[ElementTag, Element]
+type TaggedElement = TaggedItem[ElementTag, Element]
 
 
-@total_ordering
 class _OrderedEnum(Enum):
     def __lt__(self, other: Self) -> bool:
         if not isinstance(other, type(self)):

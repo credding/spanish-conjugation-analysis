@@ -1,7 +1,9 @@
-from typing import TYPE_CHECKING
+from collections.abc import Hashable
 
+from annotated_string import StringAnnotation
 from conjugation import SpellingChange, VerbAffix, VerbSubject, VerbVariant
 from conjugation_analysis import IrregularConstruction, IrregularForm
+from diff_analysis import DiffAnnotation
 from export_model import (
     ExportData,
     ExportElement,
@@ -12,40 +14,29 @@ from export_model import (
     ExportVerbFormId,
     FormChange,
 )
-from grammar_model import Element, Lemma, PartOfSpeech, Regularity, Verb, VerbForm
-from run_context import element_index, lemma_index
+from grammar_model import (
+    Element,
+    Lemma,
+    Regularity,
+    TaggedElement,
+    TaggedLemma,
+    Verb,
+    VerbForm,
+)
 from spelling_analysis import Homonym
 from stress_analysis import Stress
 from syllable_analysis import Syllable
 
-if TYPE_CHECKING:
-    from collections.abc import Hashable
 
-    from annotated_string import StringAnnotation
-    from diff_analysis import DiffAnnotation
-
-
-def export_verb_forms_and_homonyms() -> ExportData:
-    export_lemmas = [
-        x.value
-        for x in set.union(
-            lemma_index.lookup(PartOfSpeech.VERB), lemma_index.lookup(Homonym.HOMONYM)
-        )
-    ]
-    export_lemmas.sort(key=_lemma_sort)
-
-    export_elements = [
-        x.value
-        for x in set.union(
-            element_index.lookup(PartOfSpeech.VERB),
-            element_index.lookup(Homonym.HOMONYM),
-        )
-    ]
-    export_elements.sort(key=_element_sort)
+def build_export_data(
+    lemmas: set[TaggedLemma], elements: set[TaggedElement]
+) -> ExportData:
+    lemmas_sorted = sorted(lemmas, key=lambda x: _lemma_sort(x.value))
+    elements_sorted = sorted(elements, key=_element_sort)
 
     return ExportData(
-        lemmas=[_map_lemma(x) for x in export_lemmas],
-        elements=[_map_element(x) for x in export_elements],
+        lemmas=[_map_lemma_or_verb(x) for x in lemmas_sorted],
+        elements=[_map_element_or_verb_form(x) for x in elements_sorted],
     )
 
 
@@ -55,9 +46,9 @@ def _lemma_sort(lemma: Lemma) -> tuple:
     return -lemma.freq_adj, lemma.base_form, lemma.part_of_speech
 
 
-def _element_sort(element: Element) -> tuple:
+def _element_sort(tagged_element: TaggedElement) -> tuple:
+    element = tagged_element.value
     if isinstance(element, VerbForm):
-        tagged_element = element_index[element.tag]
         return (
             *_lemma_sort(element.lemma),
             element.tense,
@@ -70,26 +61,6 @@ def _element_sort(element: Element) -> tuple:
             element.form,
         )
     return *_lemma_sort(element.lemma), element.form
-
-
-def _map_lemma(lemma: Lemma) -> ExportLemma:
-    if isinstance(lemma, Verb):
-        tagged_lemma = lemma_index[lemma.tag]
-        return ExportVerb(
-            part_of_speech=lemma.part_of_speech,
-            lemma=lemma.base_form,
-            regularity=sorted(tagged_lemma.get_tags(Regularity)),
-            models=[x.base_form for x in lemma.models],
-            study_order=lemma.study_order,
-            dle_url=lemma.dle_url,
-            freq_adj=lemma.freq_adj,
-        )
-    return ExportLemma(
-        part_of_speech=lemma.part_of_speech,
-        lemma=lemma.base_form,
-        dle_url=lemma.dle_url,
-        freq_adj=lemma.freq_adj,
-    )
 
 
 def _map_element_id(element: Element) -> ExportElementId:
@@ -113,47 +84,68 @@ def _map_verb_form_id(form: VerbForm) -> ExportVerbFormId:
     )
 
 
-def _map_element(element: Element) -> ExportElement:
-    if isinstance(element, VerbForm):
-        return _map_verb_form(element)
+def _map_lemma_or_verb(tagged_lemma: TaggedLemma) -> ExportLemma:
+    lemma = tagged_lemma.value
+    if isinstance(lemma, Verb):
+        return _map_verb(tagged_lemma, lemma)
+    return _map_lemma(lemma)
 
+
+def _map_lemma(lemma: Lemma) -> ExportLemma:
+    return ExportLemma(
+        part_of_speech=lemma.part_of_speech,
+        lemma=lemma.base_form,
+        dle_url=lemma.dle_url,
+        freq_adj=lemma.freq_adj,
+    )
+
+
+def _map_verb(tagged_lemma: TaggedLemma, verb: Verb) -> ExportVerb:
+    return ExportVerb(
+        **dict(_map_lemma(verb)),
+        regularity=sorted(tagged_lemma.get_tags(Regularity)),
+        models=[x.base_form for x in verb.models],
+        study_order=verb.study_order,
+    )
+
+
+def _map_element_or_verb_form(tagged_element: TaggedElement) -> ExportElement:
+    element = tagged_element.value
+    if isinstance(element, VerbForm):
+        return _map_verb_form(tagged_element, element)
+    return _map_element(tagged_element, element)
+
+
+def _map_element(tagged_element: TaggedElement, element: Element) -> ExportElement:
     return ExportElement(
         id=_map_element_id(element),
         syllables=_map_syllables(element),
         stress_pos=_map_stress_position(element),
-        shared_forms=_map_related_elements(element, Homonym.SHARED_FORM),
-        homographs=_map_related_elements(element, Homonym.HOMOGRAPH),
-        homophones=_map_related_elements(element, Homonym.HOMOPHONE),
-        heteronyms=_map_related_elements(element, Homonym.HETERONYM),
-        paronyms=_map_related_elements(element, Homonym.PARONYM),
+        shared_forms=_map_related_elements(tagged_element, Homonym.SHARED_FORM),
+        homographs=_map_related_elements(tagged_element, Homonym.HOMOGRAPH),
+        homophones=_map_related_elements(tagged_element, Homonym.HOMOPHONE),
+        heteronyms=_map_related_elements(tagged_element, Homonym.HETERONYM),
+        paronyms=_map_related_elements(tagged_element, Homonym.PARONYM),
     )
 
 
-def _map_verb_form(form: VerbForm) -> ExportVerbForm:
-    tagged_form = element_index[form.tag]
+def _map_verb_form(tagged_element: TaggedElement, form: VerbForm) -> ExportVerbForm:
     return ExportVerbForm(
-        id=_map_verb_form_id(form),
+        **dict(_map_element(tagged_element, form)),
         subject_group=sorted(form.subject_group),
         variant=form.variant,
         preference=form.preference,
-        syllables=_map_syllables(form),
-        stress_pos=_map_stress_position(form),
         affix_range=_map_annotation_range(form, VerbAffix),
         subject_range=_map_annotation_range_or_none(form, VerbSubject),
         variant_range=_map_annotation_range_or_none(form, VerbVariant),
-        regularity=sorted(tagged_form.get_tags(Regularity)),
-        regular_form=_map_related_verb_form(form, Regularity.REGULAR_FORM),
+        regularity=sorted(tagged_element.get_tags(Regularity)),
+        regular_form=_map_related_verb_form(tagged_element, Regularity.REGULAR_FORM),
         regular_construction=_map_related_verb_form(
-            form, Regularity.REGULAR_CONSTRUCTION
+            tagged_element, Regularity.REGULAR_CONSTRUCTION
         ),
         spelling_change=_map_diff_annotation(form, SpellingChange),
         form_change=_map_diff_annotation(form, IrregularForm),
         construction_change=_map_diff_annotation(form, IrregularConstruction),
-        shared_forms=_map_related_elements(form, Homonym.SHARED_FORM),
-        homographs=_map_related_elements(form, Homonym.HOMOGRAPH),
-        homophones=_map_related_elements(form, Homonym.HOMOPHONE),
-        heteronyms=_map_related_elements(form, Homonym.HETERONYM),
-        paronyms=_map_related_elements(form, Homonym.PARONYM),
     )
 
 
@@ -199,18 +191,16 @@ def _map_diff_annotation(
 
 
 def _map_related_elements(
-    element: Element, relation: Hashable
+    tagged_element: TaggedElement, relation: Hashable
 ) -> list[ExportElementId]:
-    tagged_element = element_index[element.tag]
     return sorted(
         _map_element_id(x.value) for x in tagged_element.get_related(relation)
     )
 
 
 def _map_related_verb_form(
-    element: Element, relation: Hashable
+    tagged_element: TaggedElement, relation: Hashable
 ) -> ExportVerbFormId | None:
-    tagged_element = element_index[element.tag]
     related_elements = tagged_element.get_related(relation)
     if len(related_elements) == 0:
         return None

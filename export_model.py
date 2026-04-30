@@ -1,16 +1,9 @@
 import math
-from functools import total_ordering
 
 from pydantic import AliasGenerator, BaseModel, ConfigDict, Field, field_serializer
 from pydantic.alias_generators import to_camel
 
-from grammar_model import (  # noqa: TC001
-    PartOfSpeech,
-    Regularity,
-    Subject,
-    Tense,
-    Variant,
-)
+from grammar_model import PartOfSpeech, Regularity, Subject, Tense, Variant
 
 
 class ExportData(BaseModel):
@@ -41,7 +34,6 @@ class ExportVerb(ExportLemma):
     study_order: int | None = None
 
 
-@total_ordering
 class ExportElementId(BaseModel):
     model_config = ConfigDict(
         alias_generator=AliasGenerator(serialization_alias=to_camel),
