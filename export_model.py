@@ -53,6 +53,23 @@ class ExportElementId(BaseModel):
         return a < b
 
 
+class ExportElement(ExportElementId):
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(serialization_alias=to_camel),
+        serialize_by_alias=True,
+        polymorphic_serialization=True,
+    )
+
+    syllables: list[int]
+    stress_pos: int
+
+    shared_forms: list[ExportElementId] = Field(default_factory=list)
+    homographs: list[ExportElementId] = Field(default_factory=list)
+    homophones: list[ExportElementId] = Field(default_factory=list)
+    heteronyms: list[ExportElementId] = Field(default_factory=list)
+    paronyms: list[ExportElementId] = Field(default_factory=list)
+
+
 class ExportVerbFormId(ExportElementId):
     tense: Tense
     subject: Subject
@@ -65,31 +82,10 @@ class ExportVerbFormId(ExportElementId):
         return a < b
 
 
-class ExportElement(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=AliasGenerator(serialization_alias=to_camel),
-        serialize_by_alias=True,
-        polymorphic_serialization=True,
-    )
-
-    id: ExportElementId
-
-    syllables: list[int]
-    stress_pos: int
-
-    shared_forms: list[ExportElementId] = Field(default_factory=list)
-    homographs: list[ExportElementId] = Field(default_factory=list)
-    homophones: list[ExportElementId] = Field(default_factory=list)
-    heteronyms: list[ExportElementId] = Field(default_factory=list)
-    paronyms: list[ExportElementId] = Field(default_factory=list)
-
-
-class ExportVerbForm(ExportElement):
-    id: ExportVerbFormId
-
+class ExportVerbForm(ExportVerbFormId, ExportElement):
     subject_group: list[Subject]
     variant: Variant | None = None
-    preference: int | None = None
+    preference: int
 
     affix_range: tuple[int, int]
     subject_range: tuple[int, int] | None = None
@@ -99,11 +95,10 @@ class ExportVerbForm(ExportElement):
     regular_form: ExportVerbFormId | None = None
     regular_construction: ExportVerbFormId | None = None
 
-    spelling_change: FormChange | None = None
-    form_change: FormChange | None = None
-    construction_change: FormChange | None = None
+    irregularities: list[ExportIrregularity] = Field(default_factory=list)
 
 
-class FormChange(BaseModel):
+class ExportIrregularity(BaseModel):
+    regularity: Regularity
     range: tuple[int, int]
     from_form: str

@@ -2,20 +2,20 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from enum import Enum
 
-from grammar_model import (
-    ElementIndex,
-    ElementTag,
-    FormTag,
-    LemmaIndex,
-    Regularity,
-    TaggedElement,
-)
+from annotated_string import AnnotatedString
+from grammar_model import Element, ElementTag, FormTag, Lemma, LemmaTag, Regularity
 from phonetic_analysis import (
     STRESSED_VOWELS,
     TRANSLATE_ADD_STRESS,
     TRANSLATE_REMOVE_STRESS,
     Phoneme,
 )
+from tagged_index import TaggedIndex, TaggedItem
+
+type LemmaIndex = TaggedIndex[LemmaTag, Lemma]
+type TaggedLemma = TaggedItem[LemmaTag, Lemma]
+type ElementIndex = TaggedIndex[ElementTag, Element]
+type TaggedElement = TaggedItem[ElementTag, Element]
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,21 +42,35 @@ class Homonym(Enum):
     PARONYM = "parónimo"
 
 
+def build_phonetic_spelling_tags(word: AnnotatedString) -> tuple[Hashable, ...]:
+    phonemes = word.get_annotations(Phoneme)
+    return (
+        PhoneticSpelling("".join(_get_phonetic_spelling(x) for x in phonemes)),
+        HeteronymicSpelling("".join(_get_heteronymic_spelling(x) for x in phonemes)),
+        ParonymicSpelling("".join(_get_paronymic_spelling(x) for x in phonemes)),
+    )
+
+
+def _get_phonetic_spelling(phoneme: Phoneme) -> str:
+    return (
+        phoneme.phoneme.translate(TRANSLATE_ADD_STRESS)
+        if any(c in STRESSED_VOWELS for c in phoneme.text)
+        else phoneme.phoneme
+    )
+
+
+def _get_heteronymic_spelling(phoneme: Phoneme) -> str:
+    return phoneme.text.translate(TRANSLATE_REMOVE_STRESS)
+
+
+def _get_paronymic_spelling(phoneme: Phoneme) -> str:
+    return phoneme.phoneme
+
+
 class SpellingAnalyzer:
     def __init__(self, lemma_index: LemmaIndex, element_index: ElementIndex) -> None:
         self._element_index = element_index
         self._lemma_index = lemma_index
-
-    def tag_phonetic_spelling(self, element_tag: ElementTag) -> None:
-        tagged_element = self._element_index[element_tag]
-        phonemes = tagged_element.value.annotated_form.get_annotations(Phoneme)
-        tagged_element.tag(
-            PhoneticSpelling("".join(_get_phonetic_spelling(x) for x in phonemes)),
-            HeteronymicSpelling(
-                "".join(_get_heteronymic_spelling(x) for x in phonemes)
-            ),
-            ParonymicSpelling("".join(_get_paronymic_spelling(x) for x in phonemes)),
-        )
 
     def tag_homonyms_lemmas(self, element_tag: ElementTag) -> None:
         tagged_element = self._element_index[element_tag]
@@ -132,19 +146,3 @@ class SpellingAnalyzer:
             tagged_element.relate_to(x, homonym_tag)
 
         return matching_forms
-
-
-def _get_phonetic_spelling(phoneme: Phoneme) -> str:
-    return (
-        phoneme.phoneme.translate(TRANSLATE_ADD_STRESS)
-        if any(c in STRESSED_VOWELS for c in phoneme.text)
-        else phoneme.phoneme
-    )
-
-
-def _get_heteronymic_spelling(phoneme: Phoneme) -> str:
-    return phoneme.text.translate(TRANSLATE_REMOVE_STRESS)
-
-
-def _get_paronymic_spelling(phoneme: Phoneme) -> str:
-    return phoneme.phoneme

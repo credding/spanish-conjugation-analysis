@@ -17,10 +17,9 @@ class Phoneme(StringAnnotation):
 
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}("
-            f"{self.string.text[: self.start]}"
-            f"[{self.text}{f'({self.phoneme})' if self.phoneme != self.text else ''}]"
-            f"{self.string.text[self.stop :]})"
+            f"{super().__repr__()[:-1]}, "
+            f"phoneme_kind={self.phoneme_kind!r}, "
+            f"phoneme={self.phoneme!r})"
         )
 
 
@@ -33,6 +32,7 @@ SOFT_VOWELS = "eéií"
 
 TRANSLATE_ADD_STRESS = str.maketrans("aeiou", "áéíóú")
 TRANSLATE_REMOVE_STRESS = str.maketrans("áéíóú", "aeiou")
+TRANSLATE_REMOVE_DIACRITICS = str.maketrans("áéíóúü", "aeiouu")
 
 _SUBSTITUTE_PHONEMES = {
     "á": "a",
@@ -53,17 +53,20 @@ _COMPOUND_CONSONANT_PHONEMES = {"ch": "ch", "ll": "y", "rr": "rr"}
 _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 
-def annotate_phonemes(word: AnnotatedString) -> None:
+def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
+    phonemes: list[Phoneme] = []
     phoneme = _annotate_first_phoneme(word)
     while phoneme:
+        phonemes.append(phoneme)
         phoneme = _annotate_next_phoneme(word, phoneme.stop)
+    return phonemes
 
 
 def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
-    if word.text == "":
+    if word.string == "":
         return None
 
-    first_phoneme = _START_SUBSTITUTE_PHONEMES.get(word.text[0])
+    first_phoneme = _START_SUBSTITUTE_PHONEMES.get(word.string[0])
     if first_phoneme is not None:
         return word.annotate(Phoneme, 0, 1, PhonemeKind.CONSONANT, first_phoneme)
 
@@ -71,19 +74,11 @@ def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
 
 
 def _annotate_next_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
-    return _annotate_next_compound_phoneme(
-        word, start
-    ) or _annotate_next_simple_phoneme(word, start)
-
-
-def _annotate_next_compound_phoneme(
-    word: AnnotatedString, start: int
-) -> Phoneme | None:
     stop = start + 2
-    if stop > len(word.text):
-        return None
+    if stop > len(word.string):
+        return _annotate_simple_phoneme(word, start)
 
-    grapheme = word.text[start:stop]
+    grapheme = word.string[start:stop]
 
     if grapheme[0] == "h" and grapheme[1] in VOWELS:
         return _annotate_vowel_phoneme(word, start, stop, grapheme[1])
@@ -91,26 +86,26 @@ def _annotate_next_compound_phoneme(
     if grapheme in _COMPOUND_CONSONANT_PHONEMES:
         phoneme = _COMPOUND_CONSONANT_PHONEMES[grapheme]
     elif grapheme in _COMPOUND_HARD_CONSONANT_PHONEMES and _is_soft_vowel(
-        word.text, start + 2
+        word.string, start + 2
     ):
         phoneme = _COMPOUND_HARD_CONSONANT_PHONEMES[grapheme]
     else:
-        return None
+        return _annotate_simple_phoneme(word, start)
 
     return word.annotate(Phoneme, start, stop, PhonemeKind.CONSONANT, phoneme)
 
 
-def _annotate_next_simple_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
+def _annotate_simple_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
     stop = start + 1
-    if stop > len(word.text):
+    if stop > len(word.string):
         return None
 
-    grapheme = word.text[start:stop]
+    grapheme = word.string[start:stop]
 
     if grapheme in VOWELS:
         return _annotate_vowel_phoneme(word, start, stop, grapheme)
 
-    if grapheme in _SOFT_CONSONANT_PHONEMES and _is_soft_vowel(word.text, start + 1):
+    if grapheme in _SOFT_CONSONANT_PHONEMES and _is_soft_vowel(word.string, start + 1):
         phoneme = _SOFT_CONSONANT_PHONEMES[grapheme]
     else:
         phoneme = _SUBSTITUTE_PHONEMES.get(grapheme, grapheme)

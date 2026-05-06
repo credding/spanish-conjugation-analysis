@@ -88,8 +88,10 @@ ar;er;ir;ír,subjuntivo futuro,"vosotros, vosotras",,pretérito,"ellos, ellas",r
 ar;er;ir;ír,subjuntivo futuro,"ellos, ellas;ustedes",,pretérito,"ellos, ellas",ron,,ren,2
 ar;er;ir;ír,imperativo,tú,,presente,tú,s,,,
 ar;er;ir;ír,imperativo,vos,,presente,vos,s,,,
-ar;er;ir;ír,imperativo,usted,,subjuntivo presente,usted,,,,
-ar;er;ir;ír,imperativo,"nosotros, nosotras",,subjuntivo presente,"nosotros, nosotras",,,,
+ar,imperativo,usted,,presente,yo,o,,e,
+ar,imperativo,"nosotros, nosotras",,presente,yo,o,,emos,
+er;ir;ír,imperativo,usted,,presente,yo,o,,a,
+er;ir;ír,imperativo,"nosotros, nosotras",,presente,yo,o,,amos,
 ar,imperativo,"vosotros, vosotras",,,,_r,,ad,
 er,imperativo,"vosotros, vosotras",,,,_r,,ed,
 ir,imperativo,"vosotros, vosotras",,,,_r,,id,

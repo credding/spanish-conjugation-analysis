@@ -15,7 +15,7 @@ dev = [
     "joblib-stubs>=1.5.3.1.20260117",
     "pytest>=9.0.3",
     "ruff>=0.15.12",
-    "ty>=0.0.33",
+    "ty>=0.0.34",
 ]
 
 [tool.ruff.lint]

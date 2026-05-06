@@ -1,19 +1,12 @@
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field, replace
 from typing import Concatenate
 
 
-@dataclass(frozen=True, slots=True)
-class StringAnnotationKey:
-    annotation_type: type[StringAnnotation]
-    start: int
-    stop: int
-
-
 @dataclass(repr=False)
 class StringAnnotation(ABC):
-    string: AnnotatedString
+    string: str
     start: int
     stop: int
 
@@ -21,17 +14,17 @@ class StringAnnotation(ABC):
         if self.start < 0:
             msg = f"start must be >= 0, got {self.start}"
             raise ValueError(msg)
-        if self.stop > len(self.string.text):
+        if self.stop > len(self.string):
             msg = f"stop must be <= string length, got {self.stop}"
             raise ValueError(msg)
 
     @property
     def text(self) -> str:
-        return self.string.text[self.start : self.stop]
+        return self.string[self.start : self.stop]
 
     @property
-    def key(self) -> StringAnnotationKey:
-        return StringAnnotationKey(type(self), self.start, self.stop)
+    def unique_key(self) -> Hashable:
+        return type(self), self.start, self.stop
 
     def __lt__(self, other: StringAnnotation) -> bool:
         if not isinstance(other, StringAnnotation):
@@ -41,18 +34,16 @@ class StringAnnotation(ABC):
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}("
-            f"{self.string.text[: self.start]}"
+            f"{self.string[: self.start]}"
             f"[{self.text}]"
-            f"{self.string.text[self.stop :]})"
+            f"{self.string[self.stop :]})"
         )
 
 
 @dataclass(eq=False)
 class AnnotatedString:
-    text: str
-    _annotations: dict[StringAnnotationKey, StringAnnotation] = field(
-        default_factory=dict
-    )
+    string: str
+    _annotations: dict[Hashable, StringAnnotation] = field(default_factory=dict)
 
     @property
     def annotations(self) -> list[StringAnnotation]:
@@ -60,36 +51,42 @@ class AnnotatedString:
 
     def annotate[T: StringAnnotation, **P](
         self,
-        annotation_type: Callable[Concatenate[AnnotatedString, int, int, P], T],
+        annotation_type: Callable[Concatenate[str, int, int, P], T],
+        /,
         start: int | None = None,
         stop: int | None = None,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> T:
-        start, stop, _ = slice(start, stop).indices(len(self.text))
-        annotation = annotation_type(self, start, stop, *args, **kwargs)
-        self._annotations[annotation.key] = annotation
+        start, stop, _ = slice(start, stop).indices(len(self.string))
+        annotation = annotation_type(self.string, start, stop, *args, **kwargs)
+        self.add_annotation(annotation)
         return annotation
 
-    def add_annotation[T: StringAnnotation](self, annotation: T) -> None:
-        if annotation.string is not self:
+    def add_annotation[T: StringAnnotation](self, annotation: T, /) -> None:
+        if annotation.string != self.string:
             msg = f"annotation {annotation} is not for this string"
             raise ValueError(msg)
-        self._annotations[annotation.key] = annotation
+        if annotation.unique_key in self._annotations:
+            msg = f"annotation {annotation.unique_key} already exists"
+            raise ValueError(msg)
+        self._annotations[annotation.unique_key] = annotation
 
     def get_annotations[T: StringAnnotation](
         self,
         annotation_type: type[T],
+        /,
         start: int | None = None,
         stop: int | None = None,
     ) -> list[T]:
-        start, stop, _ = slice(start, stop).indices(len(self.text))
+        start, stop, _ = slice(start, stop).indices(len(self.string))
         return sorted(
             x
             for x in self._annotations.values()
             if isinstance(x, annotation_type)
             and (
-                (start <= x.start < stop or start < x.stop <= stop)
+                start <= x.start < stop
+                or start < x.stop <= stop
                 or start <= x.start == x.stop <= stop
             )
         )
@@ -97,6 +94,7 @@ class AnnotatedString:
     def get_annotation_or_none[T: StringAnnotation](
         self,
         annotation_type: type[T],
+        /,
         start: int | None = None,
         stop: int | None = None,
     ) -> T | None:
@@ -104,7 +102,7 @@ class AnnotatedString:
         if len(annotations) > 1:
             msg = (
                 f"multiple annotations of type {annotation_type} "
-                f"found for string {self.text}"
+                f"found for string {self.string}"
             )
             raise ValueError(msg)
         return annotations[0] if len(annotations) > 0 else None
@@ -112,53 +110,23 @@ class AnnotatedString:
     def get_annotation[T: StringAnnotation](
         self,
         annotation_type: type[T],
+        /,
         start: int | None = None,
         stop: int | None = None,
     ) -> T:
         annotation = self.get_annotation_or_none(annotation_type, start, stop)
         if annotation is None:
             msg = (
-                f"no annotation of type {annotation_type} found for string {self.text}"
+                f"no annotation of type {annotation_type} "
+                f"found for string {self.string}"
             )
             raise KeyError(msg)
         return annotation
 
-    def remove_annotations[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        start: int | None = None,
-        stop: int | None = None,
-    ) -> list[T]:
-        annotations = self.get_annotations(annotation_type, start, stop)
-        for annotation in annotations:
-            del self._annotations[annotation.key]
-        return annotations
-
-    def remove_annotation_or_none[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        start: int | None = None,
-        stop: int | None = None,
-    ) -> T | None:
-        annotation = self.get_annotation_or_none(annotation_type, start, stop)
-        if annotation is not None:
-            del self._annotations[annotation.key]
-        return annotation
-
-    def remove_annotation[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        start: int | None = None,
-        stop: int | None = None,
-    ) -> T:
-        annotation = self.get_annotation(annotation_type, start, stop)
-        del self._annotations[annotation.key]
-        return annotation
-
     def __getitem__(self, segment: slice) -> AnnotatedString:
-        start, stop, _ = segment.indices(len(self.text))
+        start, stop, _ = segment.indices(len(self.string))
 
-        result = AnnotatedString(self.text[start:stop])
+        result = AnnotatedString(self.string[start:stop])
         for x in self._annotations.values():
             if (
                 start <= x.start < stop
@@ -168,7 +136,7 @@ class AnnotatedString:
                 result.add_annotation(
                     replace(
                         x,
-                        string=result,
+                        string=result.string,
                         start=max(x.start - start, 0),
                         stop=min(x.stop - start, stop - start),
                     )
@@ -176,43 +144,30 @@ class AnnotatedString:
 
         return result
 
-    def __add__(self, other: AnnotatedString | str) -> AnnotatedString:
-        result = AnnotatedString(self.text)
-        for x in self._annotations.values():
-            result.add_annotation(replace(x, string=result))
+    def __add__(self, other: str | AnnotatedString) -> AnnotatedString:
+        if not isinstance(other, (str, AnnotatedString)):
+            return NotImplemented
 
         match other:
             case str():
-                result.text += other
+                result = AnnotatedString(self.string + other)
+                for x in self._annotations.values():
+                    result.add_annotation(replace(x, string=result.string))
+
+                return result
+
             case AnnotatedString():
-                result.text += other.text
+                result = AnnotatedString(self.string + other.string)
+                for x in self._annotations.values():
+                    result.add_annotation(replace(x, string=result.string))
                 for x in other._annotations.values():
                     result.add_annotation(
                         replace(
                             x,
-                            string=result,
-                            start=x.start + len(self.text),
-                            stop=x.stop + len(self.text),
+                            string=result.string,
+                            start=len(self.string) + x.start,
+                            stop=len(self.string) + x.stop,
                         )
                     )
-            case _:
-                return NotImplemented
 
-        return result
-
-    def __radd__(self, other: str) -> AnnotatedString:
-        if not isinstance(other, str):
-            return NotImplemented
-
-        result = AnnotatedString(other + self.text)
-        for x in self._annotations.values():
-            result.add_annotation(
-                replace(
-                    x,
-                    string=result,
-                    start=x.start + len(other),
-                    stop=x.stop + len(other),
-                )
-            )
-
-        return result
+                return result

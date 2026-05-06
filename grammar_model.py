@@ -1,18 +1,12 @@
-from abc import ABC
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Self
+from typing import Self
 
 from annotated_string import AnnotatedString
-from tagged_index import TaggedIndex, TaggedItem
-
-type LemmaIndex = TaggedIndex[LemmaTag, Lemma]
-type TaggedLemma = TaggedItem[LemmaTag, Lemma]
-type ElementIndex = TaggedIndex[ElementTag, Element]
-type TaggedElement = TaggedItem[ElementTag, Element]
 
 
-class _OrderedEnum(Enum):
+class OrderedEnum(Enum):
     def __lt__(self, other: Self) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
@@ -20,7 +14,7 @@ class _OrderedEnum(Enum):
         return members.index(self) < members.index(other)
 
 
-class PartOfSpeech(_OrderedEnum):
+class PartOfSpeech(OrderedEnum):
     ADJECTIVE = "adjetivo"
     ADVERB = "adverbio"
     AFFIX = "afjio"
@@ -50,12 +44,12 @@ class LemmaTag:
 
 
 @dataclass
-class BaseLemma(ABC):
+class BaseLemma:
     base_form: str
     part_of_speech: PartOfSpeech
 
     @property
-    def tag(self) -> LemmaTag:
+    def lemma_tag(self) -> LemmaTag:
         return LemmaTag(self.base_form, self.part_of_speech)
 
 
@@ -65,8 +59,8 @@ class Lemma(BaseLemma):
     freq_adj: float = 0
 
     @property
-    def tags(self) -> tuple[Any, ...]:
-        return self.tag, self.part_of_speech
+    def tags(self) -> tuple[Hashable, ...]:
+        return self.lemma_tag, self.part_of_speech
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,17 +83,21 @@ class FormTag:
 
 
 @dataclass
-class BaseElement(ABC):
+class BaseElement:
     lemma_tag: LemmaTag
     form: str
 
     @property
-    def part_of_speech(self) -> PartOfSpeech:
-        return self.lemma_tag.part_of_speech
+    def element_tag(self) -> ElementTag:
+        return ElementTag(self.lemma_tag, self.form)
 
     @property
-    def tag(self) -> ElementTag:
-        return ElementTag(self.lemma_tag, self.form)
+    def form_tag(self) -> FormTag:
+        return FormTag(self.form)
+
+    @property
+    def part_of_speech(self) -> PartOfSpeech:
+        return self.lemma_tag.part_of_speech
 
 
 @dataclass
@@ -112,8 +110,8 @@ class Element(BaseElement):
         self.annotated_form = AnnotatedString(self.form)
 
     @property
-    def tags(self) -> tuple[Any, ...]:
-        return self.lemma_tag, self.part_of_speech, self.tag, self.tag.form_tag
+    def tags(self) -> tuple[Hashable, ...]:
+        return self.lemma_tag, self.part_of_speech, self.element_tag, self.form_tag
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,13 +134,13 @@ class VerbTag(LemmaTag):
 
 
 @dataclass
-class BaseVerb(BaseLemma, ABC):
+class BaseVerb(BaseLemma):
     part_of_speech: PartOfSpeech = field(
         default=PartOfSpeech.VERB, init=False, repr=False
     )
 
     @property
-    def tag(self) -> VerbTag:
+    def lemma_tag(self) -> VerbTag:
         return VerbTag(self.base_form)
 
 
@@ -152,7 +150,7 @@ class Verb(BaseVerb, Lemma):
     study_order: int | None = field(default=None)
 
 
-class Tense(_OrderedEnum):
+class Tense(OrderedEnum):
     INFINITIVE = "infinitivo"
     GERUND = "gerundio"
     PARTICIPLE = "participio"
@@ -167,7 +165,7 @@ class Tense(_OrderedEnum):
     IMPERATIVE = "imperativo"
 
 
-class Subject(_OrderedEnum):
+class Subject(OrderedEnum):
     YO = "yo"
     TU = "tú"
     VOS = "vos"
@@ -180,7 +178,7 @@ class Subject(_OrderedEnum):
     ELLOS_ELLAS = "ellos, ellas"
 
 
-class Variant(_OrderedEnum):
+class Variant(OrderedEnum):
     RA = "variante ‘ra’"  # noqa: RUF001
     SE = "variante ‘se’"  # noqa: RUF001
 
@@ -193,13 +191,13 @@ class VerbFormTag(ElementTag):
 
 
 @dataclass
-class BaseVerbForm(BaseElement, ABC):
+class BaseVerbForm(BaseElement):
     lemma_tag: VerbTag
     tense: Tense
     subject: Subject
 
     @property
-    def tag(self) -> VerbFormTag:
+    def element_tag(self) -> VerbFormTag:
         return VerbFormTag(self.lemma_tag, self.form, self.tense, self.subject)
 
 
@@ -208,26 +206,23 @@ class VerbForm(BaseVerbForm, Element):
     lemma: Verb
     subject_group: list[Subject]
     variant: Variant | None
-    preference: int | None
+    preference: int
+    alt_phonology: AnnotatedString | None = None
 
     @property
-    def tags(self) -> tuple[Any, ...]:
-        return (
-            *super().tags,
-            self.tense,
-            *self.subject_group,
-            *((self.variant,) if self.variant else ()),
-        )
+    def tags(self) -> tuple[Hashable, ...]:
+        return *super().tags, self.tense, *self.subject_group, self.variant
 
 
-class Regularity(_OrderedEnum):
+class Regularity(OrderedEnum):
     MODEL_VERB = "verbo modelo"
-    REGULAR_VERB = "verbo regular"
-    IRREGULAR_VERB = "verbo irregular"
     CORRECT_FORM = "forma correcta"
     INCORRECT_FORM = "forma incorrecta"
-    SPELLING_CHANGE = "cambio ortográfico"
-    REGULAR_FORM = "forma regular"
-    IRREGULAR_FORM = "forma irregular"
+    REGULAR_MORPHOLOGY = "morfología regular"
+    IRREGULAR_MORPHOLOGY = "morfología irregular"
+    REGULAR_SPELLING = "ortografía regular"
+    IRREGULAR_SPELLING = "ortografía irregular"
+    REGULAR_SPELLING_CHANGE = "cambio ortográfico regular"
+    CONSTRUCTED_FORM = "forma construida"
     REGULAR_CONSTRUCTION = "construcción regular"
     IRREGULAR_CONSTRUCTION = "construcción irregular"

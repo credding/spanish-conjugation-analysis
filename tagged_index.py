@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Hashable
+from collections.abc import Hashable, Iterator, MutableMapping
 from dataclasses import dataclass, field
 
 
@@ -18,6 +18,7 @@ class TaggedItem[K: Hashable, V]:
     tags: set[Hashable] = field(default_factory=set, init=False)
 
     def tag(self, *tags: Hashable) -> None:
+        tags: set[Hashable] = {tag for tag in tags if tag is not None}
         self.tags.update(tags)
         for tag in tags:
             self.index._lookup[tag].add(self)  # noqa: SLF001
@@ -46,35 +47,42 @@ class TaggedItem[K: Hashable, V]:
         return self.index.lookup(Relationship(tag, self.key))
 
 
-class TaggedIndex[K: Hashable, V]:
+class TaggedIndex[K: Hashable, V](MutableMapping[K, TaggedItem[K, V]]):
     def __init__(self) -> None:
         self._items: dict[K, TaggedItem[K, V]] = {}
         self._lookup: dict[Hashable, set[TaggedItem[K, V]]] = defaultdict(set)
-        self._removed_items = set[TaggedItem[K, V]]()
 
     def __getitem__(self, key: K) -> TaggedItem[K, V]:
         return self._items[key]
 
-    def __contains__(self, key: K) -> bool:
-        return key in self._items
+    def __len__(self) -> int:
+        return len(self._items)
 
-    def setdefault(self, key: K, value: V) -> TaggedItem[K, V]:
-        entry = self._items.get(key)
-        if entry is not None:
-            return entry
+    def __iter__(self) -> Iterator[K]:
+        return iter(self._items)
 
+    def __setitem__(self, key: K, value: TaggedItem[K, V], /) -> None:
+        if value.index is not self:
+            msg = f"value {value} is not from this index"
+            raise ValueError(msg)
+        self._items[key] = value
+        for tag in value.tags:
+            self._lookup[tag].add(value)
+
+    def __delitem__(self, key: K) -> None:
+        entry = self._items.pop(key, None)
+        if entry is None:
+            return
+        for tag in entry.tags:
+            self._lookup[tag].remove(entry)
+
+    def index(self, key: K, value: V) -> TaggedItem[K, V]:
+        if key in self._items:
+            msg = f"key {key} already exists"
+            raise KeyError(msg)
         entry = TaggedItem(self, key, value)
         self._items[key] = entry
         return entry
 
-    def remove(self, key: K) -> None:
-        entry = self._items.pop(key, None)
-        if entry is None:
-            return
-        self._removed_items.add(entry)
-
     def lookup(self, *tags: Hashable) -> set[TaggedItem[K, V]]:
-        if len(tags) == 0:
-            return set(self._items.values())
-        result = set.intersection(*(self._lookup[tag] for tag in tags))
-        return result - self._removed_items
+        return set.intersection(*(self._lookup[tag] for tag in tags if tag is not None))

@@ -10,7 +10,7 @@ class Syllable(StringAnnotation):
     pass
 
 
-def annotate_syllables(word: AnnotatedString) -> None:
+def annotate_syllables(word: AnnotatedString) -> list[Syllable]:
     """
     Primary reference: [Syllabification Rules for Spanish (University of Pennsylvania;
     Mena, C.)](https://catalog.ldc.upenn.edu/docs/LDC2019S07/Syllabification_Rules_in_Spanish.pdf)
@@ -22,10 +22,10 @@ def annotate_syllables(word: AnnotatedString) -> None:
     This implementation yields incorrect syllabification for Spanish words borrowed
     from Nahuatl ('tl' is not considered as an unbreakable phoneme).
     """
-    state = _SyllableAnalysisState()
+    state = _SyllableAnalysisState(word)
     for phoneme in word.get_annotations(Phoneme):
         state.evaluate_phoneme(phoneme)
-    state.evaluate_end()
+    return state.evaluate_end()
 
 
 class _SyllablePart(Enum):
@@ -43,7 +43,9 @@ class _SyllablePart(Enum):
 
 
 class _SyllableAnalysisState:
-    def __init__(self) -> None:
+    def __init__(self, word: AnnotatedString) -> None:
+        self._word = word
+        self._syllables: list[Syllable] = []
         self._syllable_part: _SyllablePart = _SyllablePart.START_CONSONANT
         self._syllable_phonemes: list[Phoneme] = []
 
@@ -75,9 +77,10 @@ class _SyllableAnalysisState:
 
         self._syllable_phonemes.append(phoneme)
 
-    def evaluate_end(self) -> None:
+    def evaluate_end(self) -> list[Syllable]:
         if len(self._syllable_phonemes) > 0:
             self._annotate_syllable()
+        return self._syllables
 
     def _evaluate_at_start_consonant(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
@@ -184,5 +187,6 @@ class _SyllableAnalysisState:
     def _annotate_syllable(self) -> None:
         first_phoneme = self._syllable_phonemes[0]
         last_phoneme = self._syllable_phonemes[-1]
-        first_phoneme.string.annotate(Syllable, first_phoneme.start, last_phoneme.stop)
+        syllable = self._word.annotate(Syllable, first_phoneme.start, last_phoneme.stop)
+        self._syllables.append(syllable)
         self._syllable_phonemes.clear()

@@ -273,9 +273,7 @@ def _parse_conjugation_cell(
         subjects = [Subject(x) for x in row_header.split(" / ")]
 
     subject_forms = cell_text.split(" / ")
-
-    for _ in range(len(subject_forms), len(subjects)):
-        subject_forms.append(subject_forms[0])
+    subject_forms += subject_forms[:1] * (len(subjects) - len(subject_forms))
 
     for subject, subject_form in zip(subjects, subject_forms, strict=True):
         yield from _parse_form(verb_tag, tense, subject, subject_form)
@@ -298,13 +296,9 @@ def _normalize_table(table: Tag) -> list[list[Tag]]:
                     break
                 col_pos += 1
 
-            for row in result[row_pos : min(row_pos + rowspan, len(result))]:
-                for _ in range(len(row), col_pos):
-                    row.append(None)
-                for i in range(col_pos, min(col_pos + colspan, len(row))):
-                    row[i] = cell_tag
-                for _ in range(len(row), col_pos + colspan):
-                    row.append(cell_tag)
+            for row in result[row_pos : row_pos + rowspan]:
+                row.extend([None] * (col_pos - len(row)))
+                row[col_pos : col_pos + colspan] = [cell_tag] * colspan
 
             col_pos += colspan
 
