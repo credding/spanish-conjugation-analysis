@@ -103,7 +103,7 @@ def _find_article_id(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
 
 
 _CONJUG_MODELO_PATTERN = re.compile(r"\bConjug\. modelo\b")
-_CONJUG_C_PATTERN = re.compile(r"\bConjug\. c\. (\w+\b(?: o c\. \w+\b)*)")
+_CONJUG_C_PATTERN = re.compile(r"\bConjug\.(?: actual)? c\. (\w+\b(?: o c\. \w+\b)*)")
 
 
 def _get_verb(page: DLEPage, lemma_tag: LemmaTag) -> DLEVerb:
