@@ -183,12 +183,12 @@ def _map_annotation_range_or_none(
 
 def _map_irregularities(element: Element) -> list[ExportIrregularity]:
     irregularities = element.annotated_form.get_annotations(Irregularity)
-    return [
+    return sorted(
         ExportIrregularity(
             regularity=x.regularity, range=(x.start, x.stop), from_form=x.diff_string
         )
         for x in irregularities
-    ]
+    )
 
 
 def _map_related_elements(

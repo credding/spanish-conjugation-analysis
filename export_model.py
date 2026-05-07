@@ -102,3 +102,8 @@ class ExportIrregularity(BaseModel):
     regularity: Regularity
     range: tuple[int, int]
     from_form: str
+
+    def __lt__(self, other: ExportIrregularity) -> bool:
+        if not isinstance(other, ExportIrregularity):
+            return NotImplemented
+        return self.regularity < other.regularity
