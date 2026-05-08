@@ -10,7 +10,17 @@ from bs4 import Tag
 
 from dle_model import DLELemma, DLEVerb, DLEVerbForm
 from dle_web import DLEPage, DLEWeb
-from grammar_model import LemmaTag, PartOfSpeech, Subject, Tense, Variant, VerbTag
+from grammar_base_model import (
+    SUBJECT_GROUPS,
+    ConjugationTag,
+    LemmaTag,
+    PartOfSpeech,
+    Subject,
+    Tense,
+    Variant,
+    VerbFormTag,
+    VerbTag,
+)
 from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
 
 _logger = logging.getLogger(__name__)
@@ -29,9 +39,9 @@ class DLE:
         page = self._dle_web.get_page(lemma_tag.base_form)
         return self._get_lemma(page, lemma_tag)
 
-    def get_verb(self, lemma_tag: LemmaTag) -> DLEVerb:
-        page = self._dle_web.get_page(lemma_tag.base_form)
-        return self._get_verb(page, lemma_tag)
+    def get_verb(self, verb_tag: VerbTag) -> DLEVerb:
+        page = self._dle_web.get_page(verb_tag.base_form)
+        return self._get_verb(page, verb_tag)
 
     def get_verb_forms(self, verb_tag: VerbTag) -> list[DLEVerbForm]:
         page = self._dle_web.get_page(verb_tag.base_form)
@@ -68,7 +78,8 @@ def _get_lemma(page: DLEPage, lemma_tag: LemmaTag) -> DLELemma | None:
     if dle_url is None:
         return None
 
-    return DLELemma(page.word, lemma_tag.part_of_speech, dle_url)
+    lemma_tag = LemmaTag(lemma_tag.base_form, lemma_tag.part_of_speech)
+    return DLELemma(lemma_tag, dle_url)
 
 
 def _get_dle_url(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
@@ -106,27 +117,28 @@ _CONJUG_MODELO_PATTERN = re.compile(r"\bConjug\. modelo\b")
 _CONJUG_C_PATTERN = re.compile(r"\bConjug\.(?: actual)? c\. (\w+\b(?: o c\. \w+\b)*)")
 
 
-def _get_verb(page: DLEPage, lemma_tag: LemmaTag) -> DLEVerb:
-    _logger.info("parsing verb data for %s", lemma_tag)
+def _get_verb(page: DLEPage, verb_tag: VerbTag) -> DLEVerb:
+    _logger.info("parsing verb data for %s", verb_tag)
 
-    dle_url = _get_dle_url(page, lemma_tag)
+    dle_url = _get_dle_url(page, verb_tag)
     if dle_url is None:
-        msg = f"could not find DLE url for {lemma_tag}"
+        msg = f"could not find DLE url for {verb_tag}"
         raise ValueError(msg)
 
-    is_model = False
-    models: list[VerbTag] = []
+    is_model_verb = False
+    model_verbs: list[VerbTag] = []
 
     for tag in page.document.find_all(class_="c-text-intro"):
         conjug_modelo = _CONJUG_MODELO_PATTERN.search(tag.get_text())
         if conjug_modelo is not None:
-            is_model = True
+            is_model_verb = True
 
         conjug_c = _CONJUG_C_PATTERN.search(tag.get_text())
         if conjug_c is not None:
-            models.extend(VerbTag(x) for x in conjug_c.group(1).split(" o c. "))
+            model_verbs.extend(VerbTag(x) for x in conjug_c.group(1).split(" o c. "))
 
-    return DLEVerb(page.word, dle_url, is_model, models)
+    verb_tag = VerbTag(page.word)
+    return DLEVerb(verb_tag, dle_url, is_model_verb, model_verbs)
 
 
 _TENSES = {
@@ -144,39 +156,9 @@ _TENSES = {
     ("Imperativo", "Imperativo"): Tense.IMPERATIVE,
 }
 
-# fmt: off
-# ruff: disable[E501]
-_SUBJECT_GROUPS = {
-    (Tense.PRESENT, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
-    (Tense.PRESENT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.IMPERFECT, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.IMPERFECT, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
-    (Tense.IMPERFECT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.PAST, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.PAST, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
-    (Tense.PAST, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.FUTURE, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.FUTURE, Subject.EL_ELLA): [Subject.EL_ELLA, Subject.USTED],
-    (Tense.FUTURE, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.CONDITIONAL, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.CONDITIONAL, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
-    (Tense.CONDITIONAL, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.SUBJUNCTIVE_PRESENT, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.SUBJUNCTIVE_PRESENT, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
-    (Tense.SUBJUNCTIVE_PRESENT, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.SUBJUNCTIVE_PAST, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.SUBJUNCTIVE_PAST, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
-    (Tense.SUBJUNCTIVE_PAST, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-    (Tense.SUBJUNCTIVE_FUTURE, Subject.TU): [Subject.TU, Subject.VOS],
-    (Tense.SUBJUNCTIVE_FUTURE, Subject.EL_ELLA): [Subject.YO, Subject.EL_ELLA, Subject.USTED],
-    (Tense.SUBJUNCTIVE_FUTURE, Subject.ELLOS_ELLAS): [Subject.ELLOS_ELLAS, Subject.USTEDES],
-}
-# ruff: enable[E501]
-# fmt: on
-
 _REDUNDANT_SUBJECTS = {
     (tense, extra_subject)
-    for (tense, subject), subjects in _SUBJECT_GROUPS.items()
+    for (tense, subject), subjects in SUBJECT_GROUPS.items()
     for extra_subject in subjects
     if extra_subject != subject
 }
@@ -276,7 +258,8 @@ def _parse_conjugation_cell(
     subject_forms += subject_forms[:1] * (len(subjects) - len(subject_forms))
 
     for subject, subject_form in zip(subjects, subject_forms, strict=True):
-        yield from _parse_form(verb_tag, tense, subject, subject_form)
+        if (tense, subject) not in _REDUNDANT_SUBJECTS:
+            yield from _parse_form(verb_tag, tense, subject, subject_form)
 
 
 def _normalize_table(table: Tag) -> list[list[Tag]]:
@@ -310,30 +293,27 @@ def _parse_form(
 ) -> Iterable[DLEVerbForm]:
     for i, form_text in enumerate(_FORM_DELIM_PATTERN.split(forms_text)):
         form_parts = _FORM_PATTERN.fullmatch(form_text)
-
         if form_parts is None:
             msg = f"could not parse verb form {form_text}"
             raise ValueError(msg)
 
-        if (tense, subject) not in _REDUNDANT_SUBJECTS:
-            if tense == Tense.SUBJUNCTIVE_PAST:
-                variant = Variant.RA if i % 2 == 0 else Variant.SE
-                preference = i // 2
-            else:
-                variant = None
-                preference = i
+        if tense == Tense.SUBJUNCTIVE_PAST:
+            variant = Variant.RA if i % 2 == 0 else Variant.SE
+            preference = i // 2
+        else:
+            variant = None
+            preference = i
 
-            form = _remove_reflexive_pronoun(verb_tag, form_parts[1], tense, subject)
-            subject_group = _SUBJECT_GROUPS.get((tense, subject), [subject])
-            yield DLEVerbForm(
-                verb_tag, form, tense, subject, subject_group, variant, preference
-            )
+        form = _remove_reflexive_pronoun(verb_tag, form_parts[1], tense, subject)
+        form_tag = VerbFormTag(verb_tag, form, ConjugationTag(tense, subject, variant))
+        yield DLEVerbForm(form_tag, preference)
 
         if form_parts[2]:
             subject = Subject(form_parts[2])
+
             form = _remove_reflexive_pronoun(verb_tag, form_parts[3], tense, subject)
-            subject_group = [subject]
-            yield DLEVerbForm(verb_tag, form, tense, subject, subject_group, None, 0)
+            form_tag = VerbFormTag(verb_tag, form, ConjugationTag(tense, subject, None))
+            yield DLEVerbForm(form_tag, 0)
 
 
 def _remove_reflexive_pronoun(

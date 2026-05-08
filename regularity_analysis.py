@@ -2,8 +2,21 @@ from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 
 from annotated_string import AnnotatedString, StringAnnotation
-from grammar_model import Regularity
+from ordered_enum import OrderedEnum
 from phonetic_analysis import TRANSLATE_REMOVE_DIACRITICS, Phoneme
+
+
+class Regularity(OrderedEnum):
+    MODEL_VERB = "verbo modelo"
+    CORRECT_FORM = "forma correcta"
+    CONSTRUCTED_FORM = "forma construida"
+    REGULAR_MORPHOLOGY = "morfología regular"
+    IRREGULAR_MORPHOLOGY = "morfología irregular"
+    REGULAR_SPELLING = "ortografía regular"
+    IRREGULAR_SPELLING = "ortografía irregular"
+    REGULAR_SPELLING_CHANGE = "cambio ortográfico regular"
+    REGULAR_CONSTRUCTION = "construcción regular"
+    IRREGULAR_CONSTRUCTION = "construcción irregular"
 
 
 @dataclass(repr=False)

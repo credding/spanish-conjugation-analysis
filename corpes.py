@@ -2,7 +2,7 @@ from contextlib import closing
 
 from corpes_db import CORPESDB
 from corpes_model import FreqElement, FreqLemma
-from grammar_model import LemmaTag, PartOfSpeech
+from grammar_base_model import ElementTag, LemmaTag, PartOfSpeech
 
 _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "A": PartOfSpeech.ADJECTIVE,
@@ -47,7 +47,7 @@ class CORPES:
     ) -> list[FreqElement]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
-                "SELECT form, lemma, tag FROM freq_elements "
+                "SELECT DISTINCT form FROM freq_elements "
                 "WHERE lemma = ? AND tag LIKE ? || '%' AND freq_norm_without_punc > ? "
                 "ORDER BY id;",
                 (
@@ -56,7 +56,7 @@ class CORPES:
                     gt_freq,
                 ),
             )
-            return [_map_element(x) for x in cur]
+            return [_map_element(lemma_tag, x) for x in cur]
 
     def get_lemma(self, lemma_tag: LemmaTag) -> FreqLemma:
         with closing(self._conn.cursor()) as cur:
@@ -69,10 +69,10 @@ class CORPES:
 
 
 def _map_lemma(row: dict) -> FreqLemma:
-    return FreqLemma(row["lemma"], _PARTS_OF_SPEECH[row["class"]], row["freq_adj"])
-
-
-def _map_element(row: dict) -> FreqElement:
-    return FreqElement(
-        LemmaTag(row["lemma"], _PARTS_OF_SPEECH[row["tag"][0]]), row["form"]
+    return FreqLemma(
+        LemmaTag(row["lemma"], _PARTS_OF_SPEECH[row["class"]]), row["freq_adj"]
     )
+
+
+def _map_element(lemma_tag: LemmaTag, row: dict) -> FreqElement:
+    return FreqElement(ElementTag(lemma_tag, row["form"]))

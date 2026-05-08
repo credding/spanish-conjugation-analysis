@@ -1,27 +1,25 @@
 from collections import defaultdict
-from collections.abc import Hashable, Iterator, MutableMapping
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
-class Relationship:
+class Relationship[KT]:
     tag: Hashable
-    key: Hashable
+    key: KT
 
 
 @dataclass(eq=False)
-class TaggedItem[K: Hashable, V]:
-    index: TaggedIndex[K, V]
-    key: K
-    value: V
-
+class TaggedItem[KT: Hashable, VT]:
+    index: TaggedIndex[KT, VT]
+    key: KT
+    value: VT
     tags: set[Hashable] = field(default_factory=set, init=False)
 
     def tag(self, *tags: Hashable) -> None:
-        tags: set[Hashable] = {tag for tag in tags if tag is not None}
         self.tags.update(tags)
         for tag in tags:
-            self.index._lookup[tag].add(self)  # noqa: SLF001
+            self.index.tag_index[tag].add(self)
 
     def get_tags[T: Hashable](self, tag_type: type[T]) -> set[T]:
         return {x for x in self.tags if isinstance(x, tag_type)}
@@ -40,49 +38,54 @@ class TaggedItem[K: Hashable, V]:
             raise KeyError(msg)
         return tag
 
-    def relate_to(self, other: TaggedItem[K, V], tag: Hashable) -> None:
+    def relate_to(self, other: TaggedItem[KT, VT], tag: Hashable) -> None:
         other.tag(Relationship(tag, self.key))
 
-    def get_related(self, tag: Hashable) -> set[TaggedItem[K, V]]:
+    def get_related(self, tag: Hashable) -> set[TaggedItem[KT, VT]]:
         return self.index.lookup(Relationship(tag, self.key))
 
 
-class TaggedIndex[K: Hashable, V](MutableMapping[K, TaggedItem[K, V]]):
+class TaggedIndex[KT: Hashable, VT](dict[KT, TaggedItem[KT, VT]]):
     def __init__(self) -> None:
-        self._items: dict[K, TaggedItem[K, V]] = {}
-        self._lookup: dict[Hashable, set[TaggedItem[K, V]]] = defaultdict(set)
+        super().__init__()
+        self.tag_index: dict[Hashable, set[TaggedItem[KT, VT]]] = defaultdict(set)
 
-    def __getitem__(self, key: K) -> TaggedItem[K, V]:
-        return self._items[key]
-
-    def __len__(self) -> int:
-        return len(self._items)
-
-    def __iter__(self) -> Iterator[K]:
-        return iter(self._items)
-
-    def __setitem__(self, key: K, value: TaggedItem[K, V], /) -> None:
-        if value.index is not self:
-            msg = f"value {value} is not from this index"
+    def __setitem__(self, key: KT, item: TaggedItem[KT, VT]) -> None:
+        if item.index is not self:
+            msg = f"item {item} is not from this index"
             raise ValueError(msg)
-        self._items[key] = value
-        for tag in value.tags:
-            self._lookup[tag].add(value)
-
-    def __delitem__(self, key: K) -> None:
-        entry = self._items.pop(key, None)
-        if entry is None:
-            return
-        for tag in entry.tags:
-            self._lookup[tag].remove(entry)
-
-    def index(self, key: K, value: V) -> TaggedItem[K, V]:
-        if key in self._items:
+        if key in self:
             msg = f"key {key} already exists"
             raise KeyError(msg)
+        super().__setitem__(key, item)
+        if item.key not in self:
+            for tag in item.tags:
+                self.tag_index[tag].add(item)
+
+    def __delitem__(self, key: KT) -> None:
+        entry = self[key]
+        super().__delitem__(key)
+        for tag in entry.tags:
+            self.tag_index[tag].remove(entry)
+
+    def index(self, key: KT, value: VT, /) -> TaggedItem[KT, VT]:
         entry = TaggedItem(self, key, value)
-        self._items[key] = entry
+        self[key] = entry
         return entry
 
-    def lookup(self, *tags: Hashable) -> set[TaggedItem[K, V]]:
-        return set.intersection(*(self._lookup[tag] for tag in tags if tag is not None))
+    def lookup(self, *tags: Hashable) -> ResultSet[TaggedItem[KT, VT]]:
+        if len(tags) == 0:
+            return ResultSet(self.values())
+        return ResultSet(set.intersection(*(self.tag_index[tag] for tag in tags)))
+
+
+class ResultSet[T: TaggedItem](set[T]):
+    def difference_tags(self, *tags: Hashable) -> ResultSet[T]:
+        return ResultSet(
+            self.intersection({x for x in self if x.tags.isdisjoint(tags)})
+        )
+
+    def intersection_tags(self, *tags: Hashable) -> ResultSet[T]:
+        return ResultSet(
+            self.intersection({x for x in self if x.tags.issuperset(tags)})
+        )

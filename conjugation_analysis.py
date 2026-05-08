@@ -1,260 +1,232 @@
+from collections.abc import Hashable
 from dataclasses import replace
-from typing import cast
+from itertools import groupby
 
-from affix_analysis import annotate_affix
 from conjugation import (
     RegularConstructionConjugator,
     RegularMorphologyConjugator,
     RegularSpellingConjugator,
     VerbConjugator,
 )
-from grammar_model import (
-    Element,
-    ElementTag,
-    Lemma,
-    LemmaTag,
-    Regularity,
-    VerbForm,
-    VerbFormTag,
-)
-from phonetic_analysis import annotate_phonemes
+from grammar_base_model import VerbFormTag
+from grammar_index import ElementIndex, TaggedVerb, TaggedVerbForm
+from grammar_index_model import IndexVerbForm
 from regularity_analysis import (
     Irregularity,
+    Regularity,
     annotate_irregularity,
     eq_phoneme,
     eq_phoneme_text,
     eq_phoneme_text_norm,
 )
-from stress_analysis import annotate_stress
-from syllable_analysis import annotate_syllables
-from tagged_index import TaggedIndex, TaggedItem
-
-type LemmaIndex = TaggedIndex[LemmaTag, Lemma]
-type TaggedLemma = TaggedItem[LemmaTag, Lemma]
-type ElementIndex = TaggedIndex[ElementTag, Element]
-type TaggedElement = TaggedItem[ElementTag, Element]
 
 
 class ConjugationAnalyzer:
-    def __init__(self, lemma_index: LemmaIndex, element_index: ElementIndex) -> None:
+    def __init__(self, element_index: ElementIndex) -> None:
         self._element_index = element_index
-        self._lemma_index = lemma_index
 
-        self._regular_spelling_conjugator = RegularSpellingConjugator()
-        self._regular_morphology_conjugator = RegularMorphologyConjugator()
-        self._regular_construction_conjugator = RegularConstructionConjugator(
-            self._element_index
+        self._reg_spell_conjug = RegularSpellingConjugator()
+        self._reg_morph_conjug = RegularMorphologyConjugator()
+        self._reg_constr_conjug = RegularConstructionConjugator(self._element_index)
+
+    def index_regular_verb_forms(self, form: TaggedVerbForm) -> int:
+        reg_spell_count = self._index_reg_forms(
+            form.key, self._reg_spell_conjug, Regularity.REGULAR_SPELLING
+        )
+        reg_morph_count = self._index_reg_forms(
+            form.key, self._reg_morph_conjug, Regularity.REGULAR_MORPHOLOGY
+        )
+        reg_constr_count = self._index_reg_forms(
+            form.key, self._reg_constr_conjug, Regularity.REGULAR_CONSTRUCTION
         )
 
-    def index_regular_forms(self, form: VerbForm) -> int:
-        tagged_form = self._element_index[form.element_tag]
+        if reg_constr_count > 0:
+            form.tag(Regularity.CONSTRUCTED_FORM)
 
-        regular_spelling_count = self._index_regular_forms(
-            form, self._regular_spelling_conjugator, Regularity.REGULAR_SPELLING
-        )
-        regular_morphology_count = self._index_regular_forms(
-            form, self._regular_morphology_conjugator, Regularity.REGULAR_MORPHOLOGY
-        )
-        regular_construction_count = self._index_regular_forms(
-            form,
-            self._regular_construction_conjugator,
-            Regularity.CONSTRUCTED_FORM,
-            Regularity.REGULAR_CONSTRUCTION,
-        )
+        return reg_spell_count + reg_morph_count + reg_constr_count
 
-        if regular_construction_count > 0:
-            tagged_form.tag(Regularity.CONSTRUCTED_FORM)
+    def annotate_regular_spelling_change(self, form: TaggedVerbForm) -> None:
+        if Regularity.REGULAR_SPELLING not in form.tags:
+            reg_spell_form = self._lookup_reg_spell_form(form)
+            self._annotate_reg_spell_change(form, reg_spell_form)
 
-        return (
-            regular_spelling_count
-            + regular_morphology_count
-            + regular_construction_count
-        )
+        self._tag_irregularities(form)
 
-    def _index_regular_forms(
-        self, form: VerbForm, conjugator: VerbConjugator, *regularity: Regularity
-    ) -> int:
-        regular_form_strings = conjugator.conjugate(
-            form.lemma_tag, form.tense, form.subject, form.variant
-        )
+    def annotate_form_irregularities(self, form: TaggedVerbForm) -> None:
+        if Regularity.REGULAR_SPELLING not in form.tags:
+            reg_spell_form = self._lookup_reg_spell_form(form)
+            form.relate_to(reg_spell_form, Regularity.REGULAR_SPELLING)
+            self._annotate_irreg_spell(form, reg_spell_form)
+        if Regularity.REGULAR_MORPHOLOGY not in form.tags:
+            reg_morph_form = self._lookup_reg_morph_form(form)
+            form.relate_to(reg_morph_form, Regularity.REGULAR_MORPHOLOGY)
+            self._annotate_irreg_morph(form, reg_morph_form)
+        if Regularity.REGULAR_CONSTRUCTION not in form.tags:
+            reg_constr_form = self._lookup_reg_constr_form(form)
+            if reg_constr_form is not None:
+                form.relate_to(reg_constr_form, Regularity.REGULAR_CONSTRUCTION)
+                self._annotate_irreg_constr(form, reg_constr_form)
 
-        for i, regular_form_string in enumerate(regular_form_strings):
-            regular_form = replace(
-                form,
-                form=regular_form_string.string,
-                preference=i,
-                alt_phonology=regular_form_string,
+        self._tag_irregularities(form)
+
+        if Regularity.IRREGULAR_SPELLING not in form.tags:
+            form.tag(Regularity.REGULAR_SPELLING)
+
+    def tag_verb_regularity(self, verb: TaggedVerb) -> None:
+        form_tags = [
+            set.union(*(fx.tags for fx in gx))
+            for _, gx in groupby(
+                sorted(
+                    self._element_index.lookup_verb_forms(
+                        Regularity.CORRECT_FORM, verb.value.lemma_tag
+                    ),
+                    key=lambda x: (x.key.tense, x.key.subject, x.key.variant),
+                ),
+                key=lambda x: (x.key.tense, x.key.subject, x.key.variant),
             )
+        ]
 
-            if regular_form.element_tag in self._element_index:
-                tagged_form = self._element_index[regular_form.element_tag]
-            else:
-                tagged_form = self._index_verb_form(regular_form)
+        def _tag(regular_tag: Regularity | None, irregular_tag: Hashable) -> None:
+            if all(regular_tag in x for x in form_tags):
+                verb.tag(regular_tag)
+            if any(irregular_tag in x for x in form_tags):
+                verb.tag(irregular_tag)
 
-            tagged_form.tag(*regularity)
+        _tag(Regularity.REGULAR_SPELLING, Regularity.IRREGULAR_SPELLING)
+        _tag(Regularity.REGULAR_MORPHOLOGY, Regularity.IRREGULAR_MORPHOLOGY)
+        _tag(Regularity.REGULAR_CONSTRUCTION, Regularity.IRREGULAR_CONSTRUCTION)
+        _tag(None, Regularity.REGULAR_SPELLING_CHANGE)
 
-            if Regularity.CORRECT_FORM not in tagged_form.tags:
-                tagged_form.tag(Regularity.INCORRECT_FORM)
-
-        return len(regular_form_strings)
-
-    def _index_verb_form(self, form: VerbForm) -> TaggedItem[VerbFormTag, VerbForm]:
-        tagged_form = self._element_index.index(form.element_tag, form)
-        tagged_form.tag(*form.tags)
-
-        annotate_phonemes(form.annotated_form)
-        annotate_syllables(form.annotated_form)
-        annotate_stress(form.annotated_form)
-
-        annotate_affix(
-            form.annotated_form, form.lemma_tag, form.tense, form.subject, form.variant
+    def _index_reg_forms(
+        self, form_tag: VerbFormTag, conjugator: VerbConjugator, regularity: Regularity
+    ) -> int:
+        reg_annotated_forms = conjugator.conjugate(
+            form_tag.lemma_tag, form_tag.conjug_tag
         )
 
-        return cast("TaggedItem[VerbFormTag, VerbForm]", tagged_form)
+        for i, reg_annotated_form in enumerate(reg_annotated_forms):
+            reg_form = self._element_index.index_verb_form(
+                IndexVerbForm(
+                    element_tag=replace(form_tag, form=reg_annotated_form.string),
+                    preference=i,
+                    alt_phonology=reg_annotated_form,
+                )
+            )
+            reg_form.tag(regularity)
 
-    def annotate_regular_spelling_changes(self, form: VerbForm) -> None:
-        tagged_form = self._element_index[form.element_tag]
+        return len(reg_annotated_forms)
 
-        self._annotate_regular_spelling_change(form)
+    def _lookup_reg_spell_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
+        reg_spell_forms = self._element_index.lookup_verb_forms(
+            Regularity.REGULAR_SPELLING, form.value.lemma_tag, form.value.conjug_tag
+        ).difference_tags(Regularity.REGULAR_SPELLING_CHANGE)
 
-        irregularities = {
-            x.regularity
-            for x in tagged_form.value.annotated_form.get_annotations(Irregularity)
-        }
-        tagged_form.tag(*irregularities)
+        if len(reg_spell_forms) != 1:
+            msg = (
+                f"expected 1 regular form for {form.key}, found: {len(reg_spell_forms)}"
+            )
+            raise ValueError(msg)
 
-    def annotate_form_irregularities(self, form: VerbForm) -> None:
-        tagged_form = self._element_index[form.element_tag]
+        return reg_spell_forms.pop()
 
-        self._annotate_irregular_spelling(form)
-        self._annotate_irregular_morphology(form)
-        self._annotate_irregular_construction(form)
+    def _lookup_reg_morph_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
+        reg_morph_forms = self._element_index.lookup_verb_forms(
+            Regularity.REGULAR_MORPHOLOGY, form.value.lemma_tag, form.value.conjug_tag
+        )
 
-        irregularities = {
-            x.regularity
-            for x in tagged_form.value.annotated_form.get_annotations(Irregularity)
-        }
-        tagged_form.tag(*irregularities)
+        if len(reg_morph_forms) != 1:
+            msg = (
+                f"expected 1 regular form for {form.key}, found: {len(reg_morph_forms)}"
+            )
+            raise ValueError(msg)
 
-    def _annotate_regular_spelling_change(self, form: VerbForm) -> None:
-        regular_form = self._lookup_regular_spelling_form(form)
+        return reg_morph_forms.pop()
+
+    def _lookup_reg_constr_form(self, form: TaggedVerbForm) -> TaggedVerbForm | None:
+        reg_constr_forms = self._element_index.lookup_verb_forms(
+            Regularity.REGULAR_CONSTRUCTION, form.value.lemma_tag, form.value.conjug_tag
+        )
+        if len(reg_constr_forms) == 0:
+            return None
+        if any(x.value.form == form.value.form for x in reg_constr_forms):
+            return None
+
+        by_preference = dict[int, TaggedVerbForm]()
+        for reg_form in reg_constr_forms:
+            preference = reg_form.value.preference
+            if preference in by_preference:
+                msg = f"duplicate regular construction preference: {preference}"
+                raise ValueError(msg)
+            by_preference[preference] = reg_form
+
+        return by_preference.get(form.value.preference, by_preference[0])
+
+    def _annotate_reg_spell_change(
+        self, form: TaggedVerbForm, reg_spell_form: TaggedVerbForm
+    ) -> None:
         annotate_irregularity(
-            form.annotated_form,
-            regular_form.alt_phonology or regular_form.annotated_form,
+            form.value.annotated_form,
+            reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
             eq=eq_phoneme_text,
             tag=Regularity.REGULAR_SPELLING_CHANGE,
         )
 
-    def _annotate_irregular_spelling(self, form: VerbForm) -> None:
-        regular_form = self._lookup_regular_spelling_form(form)
-        annotate_irregularity(
-            form.annotated_form,
-            regular_form.alt_phonology or regular_form.annotated_form,
+    def _annotate_irreg_spell(
+        self, form: TaggedVerbForm, reg_spell_form: TaggedVerbForm
+    ) -> None:
+        irreg_spell = annotate_irregularity(
+            form.value.annotated_form,
+            reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
             eq=eq_phoneme_text_norm,
             tag=Regularity.IRREGULAR_SPELLING,
         )
 
-    def _annotate_irregular_morphology(self, form: VerbForm) -> None:
-        regular_form = self._lookup_regular_morphology_form(form)
-        irregular_morphology = annotate_irregularity(
-            form.annotated_form,
-            regular_form.annotated_form,
+        if irreg_spell is None:
+            self._annotate_reg_spell_change(form, reg_spell_form)
+
+    def _annotate_irreg_morph(
+        self, form: TaggedVerbForm, reg_morph_form: TaggedVerbForm
+    ) -> None:
+        irreg_morph = annotate_irregularity(
+            form.value.annotated_form,
+            reg_morph_form.value.annotated_form,
             eq=eq_phoneme,
             tag=Regularity.IRREGULAR_MORPHOLOGY,
         )
 
-        if irregular_morphology is None:
+        if irreg_morph is None:
             return
 
-        irregularity_stop = irregular_morphology.diff_stop
-        irregularity_suffix = regular_form.annotated_form[irregularity_stop:]
-        regular_spelling_change = next(
+        reg_suffix = reg_morph_form.value.annotated_form[irreg_morph.diff_stop :]
+        reg_spell_change = next(
             (
                 x
-                for x in irregularity_suffix.get_annotations(Irregularity)
-                if x.regularity == Regularity.REGULAR_SPELLING_CHANGE
+                for x in reg_suffix.get_annotations(Irregularity)
+                if x.regularity is Regularity.REGULAR_SPELLING_CHANGE
             ),
             None,
         )
 
-        if regular_spelling_change is not None:
-            form.annotated_form.add_annotation(
+        if reg_spell_change is not None:
+            form.value.annotated_form.add_annotation(
                 replace(
-                    regular_spelling_change,
-                    string=form.form,
-                    start=irregular_morphology.stop + regular_spelling_change.start,
-                    stop=irregular_morphology.stop + regular_spelling_change.stop,
+                    reg_spell_change,
+                    string=form.value.form,
+                    start=irreg_morph.stop + reg_spell_change.start,
+                    stop=irreg_morph.stop + reg_spell_change.stop,
                 )
             )
 
-    def _annotate_irregular_construction(self, form: VerbForm) -> None:
-        regular_form = self._lookup_regular_construction_form(form)
-        if regular_form is None:
-            return
-
+    def _annotate_irreg_constr(
+        self, form: TaggedVerbForm, reg_constr_form: TaggedVerbForm
+    ) -> None:
         annotate_irregularity(
-            form.annotated_form,
-            regular_form.annotated_form,
+            form.value.annotated_form,
+            reg_constr_form.value.annotated_form,
             eq=eq_phoneme_text,
             tag=Regularity.IRREGULAR_CONSTRUCTION,
         )
 
-    def _lookup_regular_spelling_form(self, form: VerbForm) -> VerbForm:
-        regular_spelling_forms = self._lookup_regular_forms(
-            form, Regularity.REGULAR_SPELLING
-        )
-        regular_spelling_forms -= self._lookup_regular_forms(
-            form, Regularity.REGULAR_SPELLING_CHANGE
-        )
-
-        if len(regular_spelling_forms) != 1:
-            msg = (
-                f"expected 1 regular form for {form.element_tag}, "
-                f"found: {len(regular_spelling_forms)}"
-            )
-            raise ValueError(msg)
-
-        tagged_form = regular_spelling_forms.pop()
-        return tagged_form.value
-
-    def _lookup_regular_morphology_form(self, form: VerbForm) -> VerbForm:
-        regular_morphology_forms = self._lookup_regular_forms(
-            form, Regularity.REGULAR_MORPHOLOGY
-        )
-
-        if len(regular_morphology_forms) != 1:
-            msg = (
-                f"expected 1 regular form for {form.element_tag}, "
-                f"found: {len(regular_morphology_forms)}"
-            )
-            raise ValueError(msg)
-
-        tagged_form = regular_morphology_forms.pop()
-        return tagged_form.value
-
-    def _lookup_regular_construction_form(self, form: VerbForm) -> VerbForm | None:
-        regular_construction_forms = self._lookup_regular_forms(
-            form, Regularity.REGULAR_CONSTRUCTION
-        )
-        if len(regular_construction_forms) == 0:
-            return None
-        if any(x.value.form == form.form for x in regular_construction_forms):
-            return None
-
-        by_preference = dict[int, TaggedItem[VerbFormTag, VerbForm]]()
-        for tagged_form in regular_construction_forms:
-            preference = tagged_form.value.preference
-            if preference in by_preference:
-                msg = f"duplicate regular construction preference: {preference}"
-                raise ValueError(msg)
-            by_preference[preference] = tagged_form
-
-        return by_preference.get(form.preference, by_preference[0]).value
-
-    def _lookup_regular_forms(
-        self, form: VerbForm, regularity: Regularity
-    ) -> set[TaggedItem[VerbFormTag, VerbForm]]:
-        result = self._element_index.lookup(
-            regularity, form.lemma_tag, form.tense, form.subject, form.variant
-        )
-        return cast("set[TaggedItem[VerbFormTag, VerbForm]]", result)
+    def _tag_irregularities(self, form: TaggedVerbForm) -> None:
+        for x in form.value.annotated_form.get_annotations(Irregularity):
+            form.tag(x.regularity)

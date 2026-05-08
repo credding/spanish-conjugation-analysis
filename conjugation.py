@@ -4,15 +4,8 @@ from dataclasses import replace
 
 from annotated_string import AnnotatedString
 from conjugation_spec import ConjugationSpec, get_conjugation_spec
-from grammar_model import (
-    Element,
-    ElementTag,
-    Regularity,
-    Subject,
-    Tense,
-    Variant,
-    VerbTag,
-)
+from grammar_base_model import ConjugationTag, VerbTag
+from grammar_index import ElementIndex
 from phonetic_analysis import (
     HARD_VOWELS,
     SOFT_VOWELS,
@@ -22,7 +15,7 @@ from phonetic_analysis import (
     Phoneme,
     annotate_phonemes,
 )
-from tagged_index import TaggedIndex
+from regularity_analysis import Regularity
 
 _logger = logging.getLogger(__name__)
 
@@ -30,24 +23,22 @@ _logger = logging.getLogger(__name__)
 class VerbConjugator(ABC):
     @abstractmethod
     def conjugate(
-        self, verb_tag: VerbTag, tense: Tense, subject: Subject, variant: Variant | None
+        self, verb: VerbTag, conjug_tag: ConjugationTag
     ) -> list[AnnotatedString]:
         raise NotImplementedError
 
 
 class RegularSpellingConjugator(VerbConjugator):
     def conjugate(
-        self, verb_tag: VerbTag, tense: Tense, subject: Subject, variant: Variant | None
+        self, verb: VerbTag, conjug_tag: ConjugationTag
     ) -> list[AnnotatedString]:
-        spec = get_conjugation_spec(verb_tag, tense, subject, variant)
+        spec = get_conjugation_spec(verb, conjug_tag)
         if spec is None:
             return []
 
         result: list[AnnotatedString] = []
 
-        for from_form in self._get_from_forms(
-            verb_tag, spec.from_tense, spec.from_subject
-        ):
+        for from_form in self._get_from_forms(verb, spec.from_conjug):
             form = self._conjugate_form(spec, from_form)
             if form is not None:
                 result.append(form)
@@ -88,11 +79,11 @@ class RegularSpellingConjugator(VerbConjugator):
         return stem
 
     def _get_from_forms(
-        self, verb_tag: VerbTag, tense: Tense | None, subject: Subject | None
+        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
     ) -> list[AnnotatedString]:
-        if tense is None or subject is None:
+        if from_conjug is None:
             return [_annotate_phonemes(verb_tag.infinitive)]
-        return self.conjugate(verb_tag, tense, subject, None)
+        return self.conjugate(verb_tag, from_conjug)
 
 
 class RegularMorphologyConjugator(RegularSpellingConjugator):
@@ -124,63 +115,60 @@ class RegularMorphologyConjugator(RegularSpellingConjugator):
         if stem.string == "" or affix == "":
             return stem
 
+        phonemes = stem.get_annotations(Phoneme)
+        last_phoneme_text = None
+
         if affix[0] in SOFT_VOWELS:
-            return _adapt_stem_to_soft_vowel(stem)
-        if affix[0] in HARD_VOWELS:
-            return _adapt_stem_to_hard_vowel(stem)
-        return stem
+            last_phoneme_text = _get_last_phoneme_text_for_soft_vowel(phonemes)
+        elif affix[0] in HARD_VOWELS:
+            last_phoneme_text = _get_last_phoneme_text_for_hard_vowel(phonemes)
+
+        if last_phoneme_text is None:
+            return stem
+
+        return _replace_phoneme_text(stem, phonemes[-1], last_phoneme_text)
 
 
-def _adapt_stem_to_soft_vowel(stem: AnnotatedString) -> AnnotatedString:
-    stem_phonemes = stem.get_annotations(Phoneme)
-    last_phoneme = stem_phonemes[-1]
+def _get_last_phoneme_text_for_soft_vowel(phonemes: list[Phoneme]) -> str | None:
+    key = phonemes[-1].phoneme, phonemes[-1].text
 
-    match (last_phoneme.phoneme, last_phoneme.text):
-        case "u", "u":
-            if len(stem_phonemes) >= 2 and stem_phonemes[-2].phoneme == "g":  # noqa: PLR2004
-                stem = _replace_phoneme_text(stem, last_phoneme, "ü")
-        case "g", "g":
-            stem = _replace_phoneme_text(stem, last_phoneme, "gu")
-        case "k", "c":
-            stem = _replace_phoneme_text(stem, last_phoneme, "qu")
-        case "s", "z":
-            stem = _replace_phoneme_text(stem, last_phoneme, "c")
+    if (
+        key == ("u", "u")
+        and len(phonemes) >= 2  # noqa: PLR2004
+        and phonemes[-2].phoneme == "g"
+    ):
+        return "ü"
 
-    return stem
+    return {("g", "g"): "gu", ("k", "c"): "qu", ("s", "z"): "c"}.get(key)
 
 
-def _adapt_stem_to_hard_vowel(stem: AnnotatedString) -> AnnotatedString:
-    stem_phonemes = stem.get_annotations(Phoneme)
-    last_phoneme = stem_phonemes[-1]
+def _get_last_phoneme_text_for_hard_vowel(phonemes: list[Phoneme]) -> str | None:
+    key = phonemes[-1].phoneme, phonemes[-1].text
 
-    match (last_phoneme.phoneme, last_phoneme.text):
-        case "u", "ü":
-            stem = _replace_phoneme_text(stem, last_phoneme, "u")
-        case "g", "gu":
-            stem = _replace_phoneme_text(stem, last_phoneme, "g")
-        case "k", "qu":
-            stem = _replace_phoneme_text(stem, last_phoneme, "c")
-        case "s", "c":
-            stem = _replace_phoneme_text(stem, last_phoneme, "z")
-        case "x", "g":
-            stem = _replace_phoneme_text(stem, last_phoneme, "j")
-
-    return stem
+    return {
+        ("u", "ü"): "u",
+        ("g", "gu"): "g",
+        ("k", "qu"): "c",
+        ("s", "c"): "z",
+        ("x", "g"): "j",
+    }.get(key)
 
 
 class RegularConstructionConjugator(RegularMorphologyConjugator):
-    def __init__(self, index: TaggedIndex[ElementTag, Element]) -> None:
+    def __init__(self, index: ElementIndex) -> None:
         self._index = index
 
     def _get_from_forms(
-        self, verb_tag: VerbTag, tense: Tense | None, subject: Subject | None
+        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
     ) -> list[AnnotatedString]:
-        if tense is None or subject is None:
+        if from_conjug is None:
             return []
         return [
             _annotate_phonemes(x.value.form)
             for x in sorted(
-                self._index.lookup(Regularity.CORRECT_FORM, verb_tag, tense, subject),
+                self._index.lookup_verb_forms(
+                    Regularity.CORRECT_FORM, verb_tag, from_conjug
+                ),
                 key=lambda x: x.value.preference,
             )
         ]

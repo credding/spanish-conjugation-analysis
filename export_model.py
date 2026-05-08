@@ -1,9 +1,18 @@
 import math
 
-from pydantic import AliasGenerator, BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    AliasGenerator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_serializer,
+)
 from pydantic.alias_generators import to_camel
 
-from grammar_model import PartOfSpeech, Regularity, Subject, Tense, Variant
+from grammar_base_model import PartOfSpeech, Subject, Tense, Variant
+from homonym_analysis import Homonymy
+from regularity_analysis import Regularity
 
 
 class ExportData(BaseModel):
@@ -20,8 +29,8 @@ class ExportLemma(BaseModel):
 
     lemma: str
     part_of_speech: PartOfSpeech
-    dle_url: str
-    freq_adj: float
+    dle_url: HttpUrl
+    freq_adj: float = Field(gt=0)
 
     @field_serializer("freq_adj")
     def serialize_freq_adj(self, freq_adj: float) -> float:
@@ -29,9 +38,10 @@ class ExportLemma(BaseModel):
 
 
 class ExportVerb(ExportLemma):
-    regularity: list[Regularity] = Field(default_factory=list)
     models: list[str] = Field(default_factory=list)
-    study_order: int | None = None
+    study_order: int | None = Field(default=None, gt=0)
+    regularity: list[Regularity] = Field(default_factory=list)
+    homonymy: list[Homonymy] = Field(default_factory=list)
 
 
 class ExportElementId(BaseModel):
@@ -63,6 +73,8 @@ class ExportElement(ExportElementId):
     syllables: list[int]
     stress_pos: int
 
+    homonymy: list[Homonymy] = Field(default_factory=list)
+    heteronymous_forms: list[ExportElementId] = Field(default_factory=list)
     shared_forms: list[ExportElementId] = Field(default_factory=list)
     homographs: list[ExportElementId] = Field(default_factory=list)
     homophones: list[ExportElementId] = Field(default_factory=list)
@@ -92,7 +104,8 @@ class ExportVerbForm(ExportVerbFormId, ExportElement):
     variant_range: tuple[int, int] | None = None
 
     regularity: list[Regularity]
-    regular_form: ExportVerbFormId | None = None
+    regular_spelling: ExportVerbFormId | None = None
+    regular_morphology: ExportVerbFormId | None = None
     regular_construction: ExportVerbFormId | None = None
 
     irregularities: list[ExportIrregularity] = Field(default_factory=list)

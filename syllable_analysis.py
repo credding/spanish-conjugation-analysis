@@ -2,12 +2,14 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from annotated_string import AnnotatedString, StringAnnotation
-from phonetic_analysis import Phoneme, PhonemeKind
+from phonetic_analysis import STRESSED_VOWELS, Phoneme, PhonemeKind
 
 
 @dataclass(repr=False)
 class Syllable(StringAnnotation):
-    pass
+    @property
+    def has_stress(self) -> bool:
+        return any(c in STRESSED_VOWELS for c in self.text)
 
 
 def annotate_syllables(word: AnnotatedString) -> list[Syllable]:

@@ -4,6 +4,47 @@ from enum import Enum, auto
 from annotated_string import AnnotatedString, StringAnnotation
 
 
+class SpellingType(Enum):
+    GRAPHIC = auto()
+    GRAPHIC_NO_STRESS = auto()
+    PHONETIC = auto()
+    PHONETIC_NO_STRESS = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class PhoneticForm:
+    spelling_type: SpellingType
+    form: str
+
+
+def get_graphic_form(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(spelling_type=SpellingType.GRAPHIC, form=word.string)
+
+
+def get_graphic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.GRAPHIC_NO_STRESS,
+        form=word.string.translate(TRANSLATE_REMOVE_STRESS),
+    )
+
+
+def get_phonetic_form(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.PHONETIC,
+        form="".join(
+            x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
+            for x in word.get_annotations(Phoneme)
+        ),
+    )
+
+
+def get_phonetic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.PHONETIC_NO_STRESS,
+        form="".join(x.phoneme for x in word.get_annotations(Phoneme)),
+    )
+
+
 class PhonemeKind(Enum):
     CONSONANT = auto()
     STRONG_VOWEL = auto()
@@ -14,6 +55,10 @@ class PhonemeKind(Enum):
 class Phoneme(StringAnnotation):
     phoneme_kind: PhonemeKind
     phoneme: str
+
+    @property
+    def has_stress(self) -> bool:
+        return any(c in STRESSED_VOWELS for c in self.text)
 
     def __repr__(self) -> str:
         return (

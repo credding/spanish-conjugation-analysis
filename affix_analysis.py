@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from annotated_string import AnnotatedString, StringAnnotation
 from conjugation_spec import get_conjugation_spec
-from grammar_model import Subject, Tense, Variant, VerbTag
+from grammar_base_model import ConjugationTag, Subject, VerbTag
 
 
 @dataclass(repr=False)
@@ -28,14 +28,10 @@ class VerbVariant(AffixAnnotation):
     pass
 
 
-def annotate_affix(
-    form: AnnotatedString,
-    verb_tag: VerbTag,
-    tense: Tense,
-    subject: Subject,
-    variant: Variant | None,
+def annotate_verb_form_affix(
+    form: AnnotatedString, verb: VerbTag, conjug_tag: ConjugationTag
 ) -> None:
-    spec = get_conjugation_spec(verb_tag, tense, subject, variant)
+    spec = get_conjugation_spec(verb, conjug_tag)
     if spec is None:
         return
 
@@ -46,12 +42,12 @@ def annotate_affix(
 
     form.annotate(VerbAffix, affix_match.start())
 
-    if subject is not Subject.IMPERSONAL:
+    if conjug_tag.subject is not Subject.IMPERSONAL:
         if spec.subject_len is not None:
             subject_start = -spec.subject_len
         else:
             subject_start = affix_match.start()
         form.annotate(VerbSubject, subject_start)
 
-    if variant is not None:
+    if conjug_tag.variant is not None:
         form.annotate(VerbVariant, -len(spec.affix))

@@ -1,25 +1,21 @@
 import csv
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
-from grammar_model import Subject, Tense, Variant, VerbTag
+from grammar_base_model import ConjugationTag, Subject, Tense, Variant, VerbTag
 from phonetic_analysis import TRANSLATE_ADD_STRESS
 from resources import resources_path
 
 
-@dataclass(frozen=True, slots=True)
-class _ConjugationKey:
+class _ConjugationSpecKey(NamedTuple):
     ending: str
-    tense: Tense
-    subject: Subject
-    variant: Variant | None
+    conjug_tag: ConjugationTag
 
 
 @dataclass(frozen=True)
 class ConjugationSpec:
-    from_tense: Tense | None
-    from_subject: Subject | None
+    from_conjug: ConjugationTag | None
     truncate_str: str
     pre_affix_stress: bool
     affix: str
@@ -28,20 +24,20 @@ class ConjugationSpec:
 
 
 def get_conjugation_spec(
-    verb_tag: VerbTag, tense: Tense, subject: Subject, variant: Variant | None
+    verb_tag: VerbTag, conjug_tag: ConjugationTag
 ) -> ConjugationSpec | None:
-    spec_key = _ConjugationKey(verb_tag.ending, tense, subject, variant)
+    spec_key = _ConjugationSpecKey(verb_tag.ending, conjug_tag)
     return _CONJUGATION_SPEC_LOOKUP.get(spec_key)
 
 
-def _load_conjugation_spec_lookup() -> dict[_ConjugationKey, ConjugationSpec]:
+def _load_conjugation_spec_lookup() -> dict[_ConjugationSpecKey, ConjugationSpec]:
     rows = _read_conjugation_spec_rows()
     return {k: _build_conjugation_spec(rows, k, v) for k, v in rows.items()}
 
 
-def _read_conjugation_spec_rows() -> dict[_ConjugationKey, dict[str, Any]]:
+def _read_conjugation_spec_rows() -> dict[_ConjugationSpecKey, dict[str, Any]]:
     conjugation_data_path = resources_path / "regular_conjugation.csv"
-    result: dict[_ConjugationKey, dict[str, Any]] = {}
+    result: dict[_ConjugationSpecKey, dict[str, Any]] = {}
     with conjugation_data_path.open("r", newline="") as f:
         for row in csv.DictReader(f, dialect=csv.unix_dialect):
             tense = Tense(row["tense"])
@@ -53,20 +49,23 @@ def _read_conjugation_spec_rows() -> dict[_ConjugationKey, dict[str, Any]]:
             variant = Variant(row["variant"]) if row["variant"] else None
             for ending in row["endings"].split(";"):
                 for subject in subjects or [Subject.IMPERSONAL]:
-                    key = _ConjugationKey(
-                        ending=ending, tense=tense, subject=subject, variant=variant
+                    key = _ConjugationSpecKey(
+                        ending, ConjugationTag(tense, subject, variant)
                     )
                     result[key] = row
     return result
 
 
 def _build_conjugation_spec(
-    rows: dict[_ConjugationKey, dict[str, Any]],
-    key: _ConjugationKey,
+    rows: dict[_ConjugationSpecKey, dict[str, Any]],
+    key: _ConjugationSpecKey,
     row: dict[str, Any],
 ) -> ConjugationSpec:
-    from_tense = Tense(row["from_tense"]) if row["from_tense"] else None
-    from_subject = Subject(row["from_subject"]) if row["from_subject"] else None
+    from_conjug = (
+        ConjugationTag(Tense(row["from_tense"]), Subject(row["from_subject"]), None)
+        if row["from_tense"] or row["from_subject"]
+        else None
+    )
     truncate_str: str = row["truncate_str"].replace("_", key.ending[0])
     pre_affix_stress: bool = row["pre_affix_stress"] == "1"
     affix: str = row["affix"]
@@ -76,14 +75,12 @@ def _build_conjugation_spec(
     else:
         subject_len = None
 
-    if from_tense is not None:
-        assert from_subject is not None  # noqa: S101
-        from_key = _ConjugationKey(key.ending, from_tense, from_subject, None)
-        from_affix: str = rows[from_key]["affix"]
+    if from_conjug is not None:
+        from_ = _ConjugationSpecKey(key.ending, from_conjug)
+        from_affix: str = rows[from_]["affix"]
         assert from_affix.endswith(truncate_str)  # noqa: S101
         from_affix = from_affix[: -len(truncate_str) or None]
     else:
-        assert from_subject is None  # noqa: S101
         from_affix = ""
 
     if pre_affix_stress:
@@ -94,8 +91,7 @@ def _build_conjugation_spec(
     full_affix_pattern = _build_affix_pattern(full_affix)
 
     return ConjugationSpec(
-        from_tense=from_tense,
-        from_subject=from_subject,
+        from_conjug=from_conjug,
         truncate_str=truncate_str,
         pre_affix_stress=pre_affix_stress,
         affix=affix,
