@@ -11,7 +11,7 @@ class Relationship[KT]:
 
 @dataclass(eq=False)
 class TaggedItem[KT: Hashable, VT]:
-    index: TaggedIndex[KT, VT]
+    _index: TaggedIndex[KT, VT]
     key: KT
     value: VT
     tags: set[Hashable] = field(default_factory=set, init=False)
@@ -19,7 +19,7 @@ class TaggedItem[KT: Hashable, VT]:
     def tag(self, *tags: Hashable) -> None:
         self.tags.update(tags)
         for tag in tags:
-            self.index.tag_index[tag].add(self)
+            self._index._lookup[tag].add(self)  # noqa: SLF001
 
     def get_tags[T: Hashable](self, tag_type: type[T]) -> set[T]:
         return {x for x in self.tags if isinstance(x, tag_type)}
@@ -42,16 +42,16 @@ class TaggedItem[KT: Hashable, VT]:
         other.tag(Relationship(tag, self.key))
 
     def get_related(self, tag: Hashable) -> set[TaggedItem[KT, VT]]:
-        return self.index.lookup(Relationship(tag, self.key))
+        return self._index.lookup(Relationship(tag, self.key))
 
 
 class TaggedIndex[KT: Hashable, VT](dict[KT, TaggedItem[KT, VT]]):
     def __init__(self) -> None:
         super().__init__()
-        self.tag_index: dict[Hashable, set[TaggedItem[KT, VT]]] = defaultdict(set)
+        self._lookup: dict[Hashable, set[TaggedItem[KT, VT]]] = defaultdict(set)
 
     def __setitem__(self, key: KT, item: TaggedItem[KT, VT]) -> None:
-        if item.index is not self:
+        if item._index is not self:  # noqa: SLF001
             msg = f"item {item} is not from this index"
             raise ValueError(msg)
         if key in self:
@@ -60,13 +60,13 @@ class TaggedIndex[KT: Hashable, VT](dict[KT, TaggedItem[KT, VT]]):
         super().__setitem__(key, item)
         if item.key not in self:
             for tag in item.tags:
-                self.tag_index[tag].add(item)
+                self._lookup[tag].add(item)
 
     def __delitem__(self, key: KT) -> None:
         entry = self[key]
         super().__delitem__(key)
         for tag in entry.tags:
-            self.tag_index[tag].remove(entry)
+            self._lookup[tag].remove(entry)
 
     def index(self, key: KT, value: VT, /) -> TaggedItem[KT, VT]:
         entry = TaggedItem(self, key, value)
@@ -76,7 +76,7 @@ class TaggedIndex[KT: Hashable, VT](dict[KT, TaggedItem[KT, VT]]):
     def lookup(self, *tags: Hashable) -> ResultSet[TaggedItem[KT, VT]]:
         if len(tags) == 0:
             return ResultSet(self.values())
-        return ResultSet(set.intersection(*(self.tag_index[tag] for tag in tags)))
+        return ResultSet(set.intersection(*(self._lookup[tag] for tag in tags)))
 
 
 class ResultSet[T: TaggedItem](set[T]):

@@ -1,5 +1,5 @@
 from collections.abc import Hashable
-from typing import NamedTuple, TypedDict, cast, overload
+from typing import NamedTuple, TypedDict, cast
 
 from affix_analysis import annotate_verb_form_affix
 from annotated_string import AnnotatedString
@@ -32,19 +32,16 @@ type TaggedElement = TaggedItem[ElementTag, MappedElement]
 type TaggedVerbForm = TaggedItem[VerbFormTag, MappedVerbForm]
 
 
-class LemmaIndex(TaggedIndex[LemmaTag, MappedLemma]):
-    @overload
-    def __getitem__(self, key: VerbTag) -> TaggedVerb: ...
-    @overload
-    def __getitem__(self, key: LemmaTag) -> TaggedLemma: ...
-    def __getitem__(self, key):
-        return super().__getitem__(key)
+class GrammarIndex:
+    def __init__(self) -> None:
+        self.lemmas: TaggedIndex[LemmaTag, MappedLemma] = TaggedIndex()
+        self.elements: TaggedIndex[ElementTag, MappedElement] = TaggedIndex()
 
     def index_lemma(self, lemma: IndexLemma, /) -> TaggedLemma:
-        if lemma.lemma_tag in self:
-            return self[lemma.lemma_tag]
+        if lemma.lemma_tag in self.lemmas:
+            return self.lemmas[lemma.lemma_tag]
 
-        tagged_lemma = self.index(
+        tagged_lemma = self.lemmas.index(
             lemma.lemma_tag,
             MappedLemma(
                 lemma_tag=lemma.lemma_tag,
@@ -58,10 +55,10 @@ class LemmaIndex(TaggedIndex[LemmaTag, MappedLemma]):
         return tagged_lemma
 
     def index_verb(self, verb: IndexVerb, /) -> TaggedVerb:
-        if verb.lemma_tag in self:
-            return self[verb.lemma_tag]
+        if verb.lemma_tag in self.lemmas:
+            return cast("TaggedVerb", self.lemmas[verb.lemma_tag])
 
-        tagged_verb = self.index(
+        tagged_verb = self.lemmas.index(
             verb.lemma_tag,
             MappedVerb(
                 lemma_tag=verb.lemma_tag,
@@ -76,32 +73,22 @@ class LemmaIndex(TaggedIndex[LemmaTag, MappedLemma]):
 
         return cast("TaggedVerb", tagged_verb)
 
+    def lookup_lemmas(self, *tags: Hashable) -> ResultSet[TaggedLemma]:
+        return self.lemmas.lookup(*tags)
+
     def lookup_verbs(self, *tags: Hashable) -> ResultSet[TaggedVerb]:
-        result = self.lookup(PartOfSpeech.VERB, *tags)
+        result = self.lemmas.lookup(*tags).intersection_tags(PartOfSpeech.VERB)
         return cast("ResultSet[TaggedVerb]", result)
 
-
-class ElementIndex(TaggedIndex[ElementTag, MappedElement]):
-    def __init__(self, lemma_index: LemmaIndex) -> None:
-        super().__init__()
-        self._lemma_index = lemma_index
-
-    @overload
-    def __getitem__(self, key: VerbFormTag) -> TaggedVerbForm: ...
-    @overload
-    def __getitem__(self, key: ElementTag) -> TaggedElement: ...
-    def __getitem__(self, key):
-        return super().__getitem__(key)
-
     def index_element(self, element: IndexElement, /) -> TaggedElement:
-        if element.element_tag in self:
-            return self[element.element_tag]
+        if element.element_tag in self.elements:
+            return self.elements[element.element_tag]
 
-        lemma = self._lemma_index[element.lemma_tag].value
+        lemma = self.lemmas[element.lemma_tag].value
 
         annotated_form, phonetic_forms = _analyze_phonetics(element.form)
 
-        tagged_element = self.index(
+        tagged_element = self.elements.index(
             element.element_tag,
             MappedElement(
                 element_tag=element.element_tag,
@@ -121,19 +108,19 @@ class ElementIndex(TaggedIndex[ElementTag, MappedElement]):
         return tagged_element
 
     def index_verb_form(self, form: IndexVerbForm, /) -> TaggedVerbForm:
-        if form.element_tag in self:
-            return self[form.element_tag]
+        if form.element_tag in self.elements:
+            return cast("TaggedVerbForm", self.elements[form.element_tag])
 
-        verb = self._lemma_index[form.lemma_tag].value
+        verb = cast("TaggedVerb", self.lemmas[form.lemma_tag])
 
         annotated_form, phonetic_forms = _analyze_phonetics(form.form)
         annotate_verb_form_affix(annotated_form, form.lemma_tag, form.conjug_tag)
 
-        tagged_form = self.index(
+        tagged_form = self.elements.index(
             form.element_tag,
             MappedVerbForm(
                 element_tag=form.element_tag,
-                lemma=verb,
+                lemma=verb.value,
                 annotated_form=annotated_form,
                 **phonetic_forms,
                 preference=form.preference,
@@ -151,8 +138,11 @@ class ElementIndex(TaggedIndex[ElementTag, MappedElement]):
 
         return cast("TaggedVerbForm", tagged_form)
 
+    def lookup_elements(self, *tags: Hashable) -> ResultSet[TaggedElement]:
+        return self.elements.lookup(*tags)
+
     def lookup_verb_forms(self, *tags: Hashable) -> ResultSet[TaggedVerbForm]:
-        result = self.lookup(*tags).intersection_tags(PartOfSpeech.VERB)
+        result = self.elements.lookup(*tags).intersection_tags(PartOfSpeech.VERB)
         return cast("ResultSet[TaggedVerbForm]", result)
 
 

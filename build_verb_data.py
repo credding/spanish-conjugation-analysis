@@ -1,7 +1,7 @@
 import logging
 import time
 
-from conjugation_analysis import ConjugationAnalyzer
+from conjugation_analysis import ConjugationAnalyzer, Regularity
 from corpes import CORPES
 from corpes_db import CORPESDB
 from corpes_model import FreqLemma
@@ -9,11 +9,10 @@ from dle import DLE
 from dle_web import DLEWeb
 from export_data import build_export_data
 from grammar_base_model import PartOfSpeech, VerbTag
-from grammar_index import ElementIndex, LemmaIndex, TaggedVerb
+from grammar_index import GrammarIndex, TaggedVerb
 from grammar_index_model import IndexElement, IndexLemma, IndexVerb, IndexVerbForm
-from homonym_analysis import HomonymAnalyzer, Homonymy
+from homonym_analysis import Homonymy, HomonymyAnalyzer
 from logging_config import configure_logging
-from regularity_analysis import Regularity
 from resources import artifacts_path, obj_path, resources_path
 
 _logger = logging.getLogger(__name__)
@@ -49,11 +48,10 @@ class Context:
         self._corpes = corpes
         self._dle = dle
 
-        self._lemma_index = LemmaIndex()
-        self._element_index = ElementIndex(self._lemma_index)
+        self._grammar_index = GrammarIndex()
 
-        self._conjug_analyzer = ConjugationAnalyzer(self._element_index)
-        self._spell_analysis = HomonymAnalyzer(self._lemma_index, self._element_index)
+        self._conjug_analyzer = ConjugationAnalyzer(self._grammar_index)
+        self._homonymy_analyzer = HomonymyAnalyzer(self._grammar_index)
 
     def index_top_corpes_lemmas(self) -> None:
         _logger.info("indexing top CORPES lemmas")
@@ -74,7 +72,7 @@ class Context:
                 self._index_freq_lemma_verb(freq_lemma)
                 verb_count += 1
             else:
-                self._lemma_index.index_lemma(
+                self._grammar_index.index_lemma(
                     IndexLemma(
                         lemma_tag=freq_lemma.lemma_tag,
                         dle_url="",
@@ -89,7 +87,7 @@ class Context:
     def _index_freq_lemma_verb(self, freq_lemma: FreqLemma) -> TaggedVerb:
         dle_verb = self._dle.get_verb(VerbTag(freq_lemma.base_form))
 
-        verb = self._lemma_index.index_verb(
+        verb = self._grammar_index.index_verb(
             IndexVerb(
                 lemma_tag=dle_verb.lemma_tag,
                 dle_url=dle_verb.dle_url,
@@ -113,12 +111,14 @@ class Context:
 
         top_elements = [
             ex
-            for lx in self._lemma_index.lookup().difference_tags(PartOfSpeech.VERB)
+            for lx in self._grammar_index.lookup_lemmas().difference_tags(
+                PartOfSpeech.VERB
+            )
             for ex in self._corpes.get_top_elements(lx.key, TOP_ELEMENTS_FREQ_THRESHOLD)
             if ex.form.isalpha() and ex.form.islower()
         ]
         for freq_element in top_elements:
-            element = self._element_index.index_element(
+            element = self._grammar_index.index_element(
                 IndexElement(element_tag=freq_element.element_tag)
             )
             element.tag(Regularity.CORRECT_FORM)
@@ -151,7 +151,9 @@ class Context:
         _logger.info("indexing DLE model verbs")
 
         model_verbs = {
-            mx for vx in self._lemma_index.lookup_verbs() for mx in vx.value.model_verbs
+            mx
+            for vx in self._grammar_index.lookup_verbs()
+            for mx in vx.value.model_verbs
         }
         for verb in model_verbs:
             self._index_verb(verb)
@@ -163,11 +165,11 @@ class Context:
 
         dle_forms = [
             fx
-            for vx in self._lemma_index.lookup_verbs()
+            for vx in self._grammar_index.lookup_verbs()
             for fx in self._dle.get_verb_forms(vx.key)
         ]
         for dle_form in dle_forms:
-            form = self._element_index.index_verb_form(
+            form = self._grammar_index.index_verb_form(
                 IndexVerbForm(
                     element_tag=dle_form.element_tag,
                     preference=dle_form.preference,
@@ -182,7 +184,7 @@ class Context:
         _logger.info("indexing regular verb forms")
 
         count = 0
-        for form in self._element_index.lookup_verb_forms(Regularity.CORRECT_FORM):
+        for form in self._grammar_index.lookup_verb_forms(Regularity.CORRECT_FORM):
             count += self._conjug_analyzer.index_regular_verb_forms(form)
 
         _logger.info("indexed %d verb form(s)", count)
@@ -190,7 +192,7 @@ class Context:
     def annotate_verb_form_regular_spelling_changes(self) -> None:
         _logger.info("annotating verb form regular spelling changes")
 
-        for form in self._element_index.lookup_verb_forms(
+        for form in self._grammar_index.lookup_verb_forms(
             Regularity.REGULAR_MORPHOLOGY
         ):
             self._conjug_analyzer.annotate_regular_spelling_change(form)
@@ -198,13 +200,13 @@ class Context:
     def annotate_verb_form_irregularities(self) -> None:
         _logger.info("annotating verb form irregularities")
 
-        for form in self._element_index.lookup_verb_forms(Regularity.CORRECT_FORM):
+        for form in self._grammar_index.lookup_verb_forms(Regularity.CORRECT_FORM):
             self._conjug_analyzer.annotate_form_irregularities(form)
 
     def tag_verb_regularity(self) -> None:
         _logger.info("tagging verb regularity")
 
-        for verb in self._lemma_index.lookup_verbs():
+        for verb in self._grammar_index.lookup_verbs():
             self._conjug_analyzer.tag_verb_regularity(verb)
 
     def lookup_dle_verb_form_homonym_lemmas(self) -> None:
@@ -214,21 +216,23 @@ class Context:
 
         homonym_lemma_tags = {
             ex.value.lemma_tag
-            for fx in self._element_index.lookup_verb_forms()
-            for ex in self._element_index.lookup(fx.value.phonetic_form_no_stress)
+            for fx in self._grammar_index.lookup_verb_forms()
+            for ex in self._grammar_index.lookup_elements(
+                fx.value.phonetic_form_no_stress
+            )
             if ex.value.part_of_speech is not PartOfSpeech.VERB
         }
         for lemma_tag in homonym_lemma_tags:
             dle_lemma = self._dle.get_lemma(lemma_tag)
             if dle_lemma is None:
-                del self._lemma_index[lemma_tag]
-                for element in self._element_index.lookup(lemma_tag):
-                    del self._element_index[element.key]
+                del self._grammar_index.lemmas[lemma_tag]
+                for element in self._grammar_index.lookup_elements(lemma_tag):
+                    del self._grammar_index.elements[element.key]
 
                 removed_count += 1
                 continue
 
-            lemma = self._lemma_index[lemma_tag]
+            lemma = self._grammar_index.lemmas[lemma_tag]
             lemma.value.dle_url = dle_lemma.dle_url
 
         _logger.info("removed %d lemma(s) not found in DLE", removed_count)
@@ -236,20 +240,20 @@ class Context:
     def tag_homonyms(self) -> None:
         _logger.info("tagging homonyms")
 
-        for form in self._element_index.lookup(PartOfSpeech.VERB):
-            self._spell_analysis.tag_heteronymous_forms(form)
-            self._spell_analysis.tag_shared_forms(form)
-            for homonym in self._spell_analysis.tag_homonyms(form):
+        for form in self._grammar_index.lookup_elements(PartOfSpeech.VERB):
+            self._homonymy_analyzer.tag_heteronymous_forms(form)
+            self._homonymy_analyzer.tag_shared_forms(form)
+            for homonym in self._homonymy_analyzer.tag_homonyms(form):
                 if homonym.value.part_of_speech is not PartOfSpeech.VERB:
-                    self._spell_analysis.tag_homonyms(homonym)
+                    self._homonymy_analyzer.tag_homonyms(homonym)
 
     def export_verb_data(self) -> None:
         _logger.info("exporting verb data")
 
-        export_lemmas = self._lemma_index.lookup(PartOfSpeech.VERB)
-        export_lemmas |= self._lemma_index.lookup(Homonymy.HOMONYM)
-        export_elements = self._element_index.lookup(PartOfSpeech.VERB)
-        export_elements |= self._element_index.lookup(Homonymy.HOMONYM)
+        export_lemmas = self._grammar_index.lookup_lemmas(PartOfSpeech.VERB)
+        export_lemmas |= self._grammar_index.lookup_lemmas(Homonymy.HOMONYM)
+        export_elements = self._grammar_index.lookup_elements(PartOfSpeech.VERB)
+        export_elements |= self._grammar_index.lookup_elements(Homonymy.HOMONYM)
 
         export_data = build_export_data(export_lemmas, export_elements)
         export_json = export_data.model_dump_json(

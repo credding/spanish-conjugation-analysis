@@ -1,43 +1,101 @@
-from collections.abc import Hashable
-from dataclasses import replace
+from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass, replace
 from itertools import groupby
 
+from annotated_string import AnnotatedString, StringAnnotation
 from conjugation import (
-    RegularConstructionConjugator,
     RegularMorphologyConjugator,
     RegularSpellingConjugator,
     VerbConjugator,
 )
-from grammar_base_model import VerbFormTag
-from grammar_index import ElementIndex, TaggedVerb, TaggedVerbForm
+from grammar_base_model import ConjugationTag, VerbTag
+from grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
 from grammar_index_model import IndexVerbForm
-from regularity_analysis import (
-    Irregularity,
-    Regularity,
-    annotate_irregularity,
-    eq_phoneme,
-    eq_phoneme_text,
-    eq_phoneme_text_norm,
-)
+from ordered_enum import OrderedEnum
+from phonetic_analysis import TRANSLATE_REMOVE_DIACRITICS, Phoneme, annotate_phonemes
+
+
+class Regularity(OrderedEnum):
+    MODEL_VERB = "verbo modelo"
+    CORRECT_FORM = "forma correcta"
+    CONSTRUCTED_FORM = "forma construida"
+    REGULAR_MORPHOLOGY = "morfología regular"
+    IRREGULAR_MORPHOLOGY = "morfología irregular"
+    REGULAR_SPELLING = "ortografía regular"
+    IRREGULAR_SPELLING = "ortografía irregular"
+    REGULAR_SPELLING_CHANGE = "cambio ortográfico regular"
+    REGULAR_CONSTRUCTION = "construcción regular"
+    IRREGULAR_CONSTRUCTION = "construcción irregular"
+
+
+@dataclass(repr=False)
+class Irregularity(StringAnnotation):
+    regularity: Regularity
+    diff_text: str
+
+    @property
+    def diff_string(self) -> str:
+        return f"{self.string[: self.start]}{self.diff_text}{self.string[self.stop :]}"
+
+    @property
+    def diff_stop(self) -> int:
+        return self.stop - (len(self.text) - len(self.diff_text))
+
+    def unique_key(self) -> Hashable:
+        return type(self), self.regularity
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}("
+            f"{self.string[: self.start]}"
+            f"[{self.diff_text or "''"} -> {self.text or "''"}]"
+            f"{self.string[self.stop :]})"
+            f"{super().__repr__()[:-1]}, "
+            f"regularity={self.regularity!r})"
+        )
+
+
+class _RegularConstructionConjugator(RegularMorphologyConjugator):
+    def __init__(self, index: GrammarIndex) -> None:
+        self._index = index
+
+    def _get_from_forms(
+        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
+    ) -> list[AnnotatedString]:
+        if from_conjug is None:
+            return []
+
+        from_forms = []
+        for x in sorted(
+            self._index.lookup_verb_forms(
+                Regularity.CORRECT_FORM, verb_tag, from_conjug
+            ),
+            key=lambda x: x.value.preference,
+        ):
+            from_form = AnnotatedString(x.value.form)
+            annotate_phonemes(from_form)
+            from_forms.append(from_form)
+
+        return from_forms
 
 
 class ConjugationAnalyzer:
-    def __init__(self, element_index: ElementIndex) -> None:
-        self._element_index = element_index
+    def __init__(self, index: GrammarIndex) -> None:
+        self._index = index
 
         self._reg_spell_conjug = RegularSpellingConjugator()
         self._reg_morph_conjug = RegularMorphologyConjugator()
-        self._reg_constr_conjug = RegularConstructionConjugator(self._element_index)
+        self._reg_constr_conjug = _RegularConstructionConjugator(self._index)
 
     def index_regular_verb_forms(self, form: TaggedVerbForm) -> int:
         reg_spell_count = self._index_reg_forms(
-            form.key, self._reg_spell_conjug, Regularity.REGULAR_SPELLING
+            form, self._reg_spell_conjug, Regularity.REGULAR_SPELLING
         )
         reg_morph_count = self._index_reg_forms(
-            form.key, self._reg_morph_conjug, Regularity.REGULAR_MORPHOLOGY
+            form, self._reg_morph_conjug, Regularity.REGULAR_MORPHOLOGY
         )
         reg_constr_count = self._index_reg_forms(
-            form.key, self._reg_constr_conjug, Regularity.REGULAR_CONSTRUCTION
+            form, self._reg_constr_conjug, Regularity.REGULAR_CONSTRUCTION
         )
 
         if reg_constr_count > 0:
@@ -48,26 +106,28 @@ class ConjugationAnalyzer:
     def annotate_regular_spelling_change(self, form: TaggedVerbForm) -> None:
         if Regularity.REGULAR_SPELLING not in form.tags:
             reg_spell_form = self._lookup_reg_spell_form(form)
-            self._annotate_reg_spell_change(form, reg_spell_form)
+            _annotate_reg_spell_change(form, reg_spell_form)
 
-        self._tag_irregularities(form)
+        _tag_irregularities(form)
 
     def annotate_form_irregularities(self, form: TaggedVerbForm) -> None:
         if Regularity.REGULAR_SPELLING not in form.tags:
             reg_spell_form = self._lookup_reg_spell_form(form)
             form.relate_to(reg_spell_form, Regularity.REGULAR_SPELLING)
-            self._annotate_irreg_spell(form, reg_spell_form)
+            _annotate_irreg_spell(form, reg_spell_form)
+
         if Regularity.REGULAR_MORPHOLOGY not in form.tags:
             reg_morph_form = self._lookup_reg_morph_form(form)
             form.relate_to(reg_morph_form, Regularity.REGULAR_MORPHOLOGY)
-            self._annotate_irreg_morph(form, reg_morph_form)
+            _annotate_irreg_morph(form, reg_morph_form)
+
         if Regularity.REGULAR_CONSTRUCTION not in form.tags:
             reg_constr_form = self._lookup_reg_constr_form(form)
             if reg_constr_form is not None:
                 form.relate_to(reg_constr_form, Regularity.REGULAR_CONSTRUCTION)
-                self._annotate_irreg_constr(form, reg_constr_form)
+                _annotate_irreg_constr(form, reg_constr_form)
 
-        self._tag_irregularities(form)
+        _tag_irregularities(form)
 
         if Regularity.IRREGULAR_SPELLING not in form.tags:
             form.tag(Regularity.REGULAR_SPELLING)
@@ -77,7 +137,7 @@ class ConjugationAnalyzer:
             set.union(*(fx.tags for fx in gx))
             for _, gx in groupby(
                 sorted(
-                    self._element_index.lookup_verb_forms(
+                    self._index.lookup_verb_forms(
                         Regularity.CORRECT_FORM, verb.value.lemma_tag
                     ),
                     key=lambda x: (x.key.tense, x.key.subject, x.key.variant),
@@ -98,16 +158,16 @@ class ConjugationAnalyzer:
         _tag(None, Regularity.REGULAR_SPELLING_CHANGE)
 
     def _index_reg_forms(
-        self, form_tag: VerbFormTag, conjugator: VerbConjugator, regularity: Regularity
+        self, form: TaggedVerbForm, conjugator: VerbConjugator, regularity: Regularity
     ) -> int:
         reg_annotated_forms = conjugator.conjugate(
-            form_tag.lemma_tag, form_tag.conjug_tag
+            form.value.lemma_tag, form.value.conjug_tag
         )
 
         for i, reg_annotated_form in enumerate(reg_annotated_forms):
-            reg_form = self._element_index.index_verb_form(
+            reg_form = self._index.index_verb_form(
                 IndexVerbForm(
-                    element_tag=replace(form_tag, form=reg_annotated_form.string),
+                    element_tag=replace(form.key, form=reg_annotated_form.string),
                     preference=i,
                     alt_phonology=reg_annotated_form,
                 )
@@ -117,7 +177,7 @@ class ConjugationAnalyzer:
         return len(reg_annotated_forms)
 
     def _lookup_reg_spell_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
-        reg_spell_forms = self._element_index.lookup_verb_forms(
+        reg_spell_forms = self._index.lookup_verb_forms(
             Regularity.REGULAR_SPELLING, form.value.lemma_tag, form.value.conjug_tag
         ).difference_tags(Regularity.REGULAR_SPELLING_CHANGE)
 
@@ -130,7 +190,7 @@ class ConjugationAnalyzer:
         return reg_spell_forms.pop()
 
     def _lookup_reg_morph_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
-        reg_morph_forms = self._element_index.lookup_verb_forms(
+        reg_morph_forms = self._index.lookup_verb_forms(
             Regularity.REGULAR_MORPHOLOGY, form.value.lemma_tag, form.value.conjug_tag
         )
 
@@ -143,7 +203,7 @@ class ConjugationAnalyzer:
         return reg_morph_forms.pop()
 
     def _lookup_reg_constr_form(self, form: TaggedVerbForm) -> TaggedVerbForm | None:
-        reg_constr_forms = self._element_index.lookup_verb_forms(
+        reg_constr_forms = self._index.lookup_verb_forms(
             Regularity.REGULAR_CONSTRUCTION, form.value.lemma_tag, form.value.conjug_tag
         )
         if len(reg_constr_forms) == 0:
@@ -161,72 +221,152 @@ class ConjugationAnalyzer:
 
         return by_preference.get(form.value.preference, by_preference[0])
 
-    def _annotate_reg_spell_change(
-        self, form: TaggedVerbForm, reg_spell_form: TaggedVerbForm
-    ) -> None:
-        annotate_irregularity(
-            form.value.annotated_form,
-            reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
-            eq=eq_phoneme_text,
-            tag=Regularity.REGULAR_SPELLING_CHANGE,
-        )
 
-    def _annotate_irreg_spell(
-        self, form: TaggedVerbForm, reg_spell_form: TaggedVerbForm
-    ) -> None:
-        irreg_spell = annotate_irregularity(
-            form.value.annotated_form,
-            reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
-            eq=eq_phoneme_text_norm,
-            tag=Regularity.IRREGULAR_SPELLING,
-        )
+def _annotate_reg_spell_change(
+    form: TaggedVerbForm, reg_spell_form: TaggedVerbForm
+) -> None:
+    _annotate_irregularity(
+        form.value.annotated_form,
+        reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
+        eq=_eq_phoneme_text,
+        tag=Regularity.REGULAR_SPELLING_CHANGE,
+    )
 
-        if irreg_spell is None:
-            self._annotate_reg_spell_change(form, reg_spell_form)
 
-    def _annotate_irreg_morph(
-        self, form: TaggedVerbForm, reg_morph_form: TaggedVerbForm
-    ) -> None:
-        irreg_morph = annotate_irregularity(
-            form.value.annotated_form,
-            reg_morph_form.value.annotated_form,
-            eq=eq_phoneme,
-            tag=Regularity.IRREGULAR_MORPHOLOGY,
-        )
+def _annotate_irreg_spell(form: TaggedVerbForm, reg_spell_form: TaggedVerbForm) -> None:
+    irreg_spell = _annotate_irregularity(
+        form.value.annotated_form,
+        reg_spell_form.value.alt_phonology or reg_spell_form.value.annotated_form,
+        eq=_eq_phoneme_text_norm,
+        tag=Regularity.IRREGULAR_SPELLING,
+    )
 
-        if irreg_morph is None:
-            return
+    if irreg_spell is None:
+        _annotate_reg_spell_change(form, reg_spell_form)
 
-        reg_suffix = reg_morph_form.value.annotated_form[irreg_morph.diff_stop :]
-        reg_spell_change = next(
-            (
-                x
-                for x in reg_suffix.get_annotations(Irregularity)
-                if x.regularity is Regularity.REGULAR_SPELLING_CHANGE
-            ),
-            None,
-        )
 
-        if reg_spell_change is not None:
-            form.value.annotated_form.add_annotation(
-                replace(
-                    reg_spell_change,
-                    string=form.value.form,
-                    start=irreg_morph.stop + reg_spell_change.start,
-                    stop=irreg_morph.stop + reg_spell_change.stop,
-                )
+def _annotate_irreg_morph(form: TaggedVerbForm, reg_morph_form: TaggedVerbForm) -> None:
+    irreg_morph = _annotate_irregularity(
+        form.value.annotated_form,
+        reg_morph_form.value.annotated_form,
+        eq=_eq_phoneme,
+        tag=Regularity.IRREGULAR_MORPHOLOGY,
+    )
+
+    if irreg_morph is None:
+        return
+
+    reg_suffix = reg_morph_form.value.annotated_form[irreg_morph.diff_stop :]
+    reg_spell_change = next(
+        (
+            x
+            for x in reg_suffix.get_annotations(Irregularity)
+            if x.regularity is Regularity.REGULAR_SPELLING_CHANGE
+        ),
+        None,
+    )
+
+    if reg_spell_change is not None:
+        form.value.annotated_form.add_annotation(
+            replace(
+                reg_spell_change,
+                string=form.value.form,
+                start=irreg_morph.stop + reg_spell_change.start,
+                stop=irreg_morph.stop + reg_spell_change.stop,
             )
-
-    def _annotate_irreg_constr(
-        self, form: TaggedVerbForm, reg_constr_form: TaggedVerbForm
-    ) -> None:
-        annotate_irregularity(
-            form.value.annotated_form,
-            reg_constr_form.value.annotated_form,
-            eq=eq_phoneme_text,
-            tag=Regularity.IRREGULAR_CONSTRUCTION,
         )
 
-    def _tag_irregularities(self, form: TaggedVerbForm) -> None:
-        for x in form.value.annotated_form.get_annotations(Irregularity):
-            form.tag(x.regularity)
+
+def _annotate_irreg_constr(
+    form: TaggedVerbForm, reg_constr_form: TaggedVerbForm
+) -> None:
+    _annotate_irregularity(
+        form.value.annotated_form,
+        reg_constr_form.value.annotated_form,
+        eq=_eq_phoneme_text,
+        tag=Regularity.IRREGULAR_CONSTRUCTION,
+    )
+
+
+def _tag_irregularities(form: TaggedVerbForm) -> None:
+    for x in form.value.annotated_form.get_annotations(Irregularity):
+        form.tag(x.regularity)
+
+
+def _annotate_irregularity(
+    word: AnnotatedString,
+    diff_word: AnnotatedString,
+    /,
+    *,
+    eq: Callable[[Phoneme, Phoneme], bool],
+    tag: Regularity,
+) -> Irregularity | None:
+    phonemes = word.get_annotations(Phoneme)
+    diff_phonemes = diff_word.get_annotations(Phoneme)
+
+    diff_range = _get_diff_range(phonemes, diff_phonemes, eq=eq)
+    if diff_range is None:
+        return None
+
+    start_phoneme, stop_phoneme = diff_range
+
+    start = _get_phoneme_text_index(phonemes, start_phoneme)
+    diff_start = _get_phoneme_text_index(diff_phonemes, start_phoneme)
+
+    len_diff = len(phonemes) - len(diff_phonemes)
+
+    stop = _get_phoneme_text_index(phonemes, stop_phoneme)
+    diff_stop = _get_phoneme_text_index(diff_phonemes, stop_phoneme - len_diff)
+
+    return word.annotate(
+        Irregularity, start, stop, tag, diff_word.string[diff_start:diff_stop]
+    )
+
+
+def _get_phoneme_text_index(phonemes: Sequence[Phoneme], index: int) -> int:
+    return phonemes[index].start if index < len(phonemes) else len(phonemes[-1].string)
+
+
+def _get_diff_range[T](
+    string: Sequence[T],
+    diff_string: Sequence[T],
+    /,
+    *,
+    eq: Callable[[T, T], bool] = lambda x, y: x == y,
+) -> tuple[int, int] | None:
+    start = 0
+    while (
+        start < len(string)
+        and start < len(diff_string)
+        and eq(string[start], diff_string[start])
+    ):
+        start += 1
+
+    if len(string) == len(diff_string) == start:
+        return None
+
+    len_diff = len(string) - len(diff_string)
+
+    stop = len(string)
+    while (
+        stop > start
+        and stop > len_diff
+        and eq(string[stop - 1], diff_string[stop - len_diff - 1])
+    ):
+        stop -= 1
+
+    return start, stop
+
+
+def _eq_phoneme(a: Phoneme, b: Phoneme) -> bool:
+    return (a.phoneme_kind, a.phoneme) == (b.phoneme_kind, b.phoneme)
+
+
+def _eq_phoneme_text(a: Phoneme, b: Phoneme) -> bool:
+    return a.text == b.text
+
+
+def _eq_phoneme_text_norm(a: Phoneme, b: Phoneme) -> bool:
+    a_text_norm = a.text.translate(TRANSLATE_REMOVE_DIACRITICS)
+    b_text_norm = b.text.translate(TRANSLATE_REMOVE_DIACRITICS)
+    return a_text_norm == b_text_norm

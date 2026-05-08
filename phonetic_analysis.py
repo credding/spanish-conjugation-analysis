@@ -100,14 +100,14 @@ _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
     phonemes: list[Phoneme] = []
-    phoneme = _annotate_first_phoneme(word)
+    phoneme = annotate_first_phoneme(word)
     while phoneme:
         phonemes.append(phoneme)
-        phoneme = _annotate_next_phoneme(word, phoneme.stop)
+        phoneme = annotate_next_phoneme(word, phoneme.stop)
     return phonemes
 
 
-def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
+def annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
     if word.string == "":
         return None
 
@@ -115,10 +115,10 @@ def _annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
     if first_phoneme is not None:
         return word.annotate(Phoneme, 0, 1, PhonemeKind.CONSONANT, first_phoneme)
 
-    return _annotate_next_phoneme(word, 0)
+    return annotate_next_phoneme(word, 0)
 
 
-def _annotate_next_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
+def annotate_next_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
     stop = start + 2
     if stop > len(word.string):
         return _annotate_simple_phoneme(word, start)

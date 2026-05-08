@@ -4,6 +4,7 @@ from pydantic import HttpUrl
 
 from affix_analysis import VerbAffix, VerbSubject, VerbVariant
 from annotated_string import StringAnnotation
+from conjugation_analysis import Irregularity, Regularity
 from export_model import (
     ExportData,
     ExportElement,
@@ -17,7 +18,6 @@ from export_model import (
 from grammar_index import TaggedElement, TaggedLemma
 from grammar_index_model import MappedElement, MappedLemma, MappedVerb, MappedVerbForm
 from homonym_analysis import Homonymy
-from regularity_analysis import Irregularity, Regularity
 from stress_analysis import Stress
 from syllable_analysis import Syllable
 

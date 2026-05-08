@@ -10,9 +10,9 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
+from conjugation_analysis import Regularity
 from grammar_base_model import PartOfSpeech, Subject, Tense, Variant
 from homonym_analysis import Homonymy
-from regularity_analysis import Regularity
 
 
 class ExportData(BaseModel):

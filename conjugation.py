@@ -5,7 +5,6 @@ from dataclasses import replace
 from annotated_string import AnnotatedString
 from conjugation_spec import ConjugationSpec, get_conjugation_spec
 from grammar_base_model import ConjugationTag, VerbTag
-from grammar_index import ElementIndex
 from phonetic_analysis import (
     HARD_VOWELS,
     SOFT_VOWELS,
@@ -13,9 +12,9 @@ from phonetic_analysis import (
     TRANSLATE_ADD_STRESS,
     VOWELS,
     Phoneme,
+    annotate_next_phoneme,
     annotate_phonemes,
 )
-from regularity_analysis import Regularity
 
 _logger = logging.getLogger(__name__)
 
@@ -61,9 +60,8 @@ class RegularSpellingConjugator(VerbConjugator):
         stem = self._adapt_stem(stem, affix)
 
         if spec.pre_affix_stress:
-            stem_phonemes = stem.get_annotations(Phoneme)
-            last_phoneme = stem_phonemes[-1]
-            stem = _replace_phoneme_text(
+            last_phoneme = stem.get_annotations(Phoneme)[-1]
+            stem = _replace_phoneme(
                 stem, last_phoneme, last_phoneme.text.translate(TRANSLATE_ADD_STRESS)
             )
 
@@ -82,7 +80,9 @@ class RegularSpellingConjugator(VerbConjugator):
         self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
     ) -> list[AnnotatedString]:
         if from_conjug is None:
-            return [_annotate_phonemes(verb_tag.infinitive)]
+            infinitive_form = AnnotatedString(verb_tag.infinitive)
+            annotate_phonemes(infinitive_form)
+            return [infinitive_form]
         return self.conjugate(verb_tag, from_conjug)
 
 
@@ -154,29 +154,11 @@ def _get_last_phoneme_text_for_hard_vowel(phonemes: list[Phoneme]) -> str | None
     }.get(key)
 
 
-class RegularConstructionConjugator(RegularMorphologyConjugator):
-    def __init__(self, index: ElementIndex) -> None:
-        self._index = index
-
-    def _get_from_forms(
-        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
-    ) -> list[AnnotatedString]:
-        if from_conjug is None:
-            return []
-        return [
-            _annotate_phonemes(x.value.form)
-            for x in sorted(
-                self._index.lookup_verb_forms(
-                    Regularity.CORRECT_FORM, verb_tag, from_conjug
-                ),
-                key=lambda x: x.value.preference,
-            )
-        ]
-
-
-def _annotate_phonemes(word: str) -> AnnotatedString:
-    string = AnnotatedString(word)
-    annotate_phonemes(string)
+def _replace_phoneme(
+    string: AnnotatedString, phoneme: Phoneme, new_text: str
+) -> AnnotatedString:
+    string = string[: phoneme.start] + new_text + string[phoneme.stop :]
+    annotate_next_phoneme(string, phoneme.start)
     return string
 
 

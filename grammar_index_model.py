@@ -29,17 +29,19 @@ class IndexVerbForm(IndexElement, BaseVerbForm):
 
 
 @dataclass(kw_only=True)
-class MappedLemma(IndexLemma):
-    pass
+class MappedLemma(BaseLemma):
+    dle_url: str
+    freq_adj: float
 
 
 @dataclass(kw_only=True)
-class MappedVerb(MappedLemma, IndexVerb):
-    pass
+class MappedVerb(MappedLemma, BaseVerb):
+    model_verbs: list[VerbTag]
+    study_order: int | None
 
 
 @dataclass(kw_only=True)
-class MappedElement(IndexElement):
+class MappedElement(BaseElement):
     lemma: MappedLemma
     annotated_form: AnnotatedString
     graphic_form: PhoneticForm
@@ -49,5 +51,7 @@ class MappedElement(IndexElement):
 
 
 @dataclass(kw_only=True)
-class MappedVerbForm(MappedElement, IndexVerbForm):
-    pass
+class MappedVerbForm(MappedElement, BaseVerbForm):
+    lemma: MappedVerb
+    preference: int
+    alt_phonology: AnnotatedString | None
