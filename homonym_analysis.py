@@ -37,10 +37,12 @@ class HomonymyAnalyzer:
             .difference_tags(form.value.lemma_tag)
         )
 
-        if len(shared_forms) > 0:
-            form.tag(Homonymy.SHARED_FORM)
-            if Regularity.CORRECT_FORM in form.tags:
-                self._index.lemmas[form.value.lemma_tag].tag(Homonymy.SHARED_FORM)
+        if len(shared_forms) == 0:
+            return
+
+        form.tag(Homonymy.SHARED_FORM)
+        if Regularity.CORRECT_FORM in form.tags:
+            self._index.lemmas[form.value.lemma_tag].tag(Homonymy.SHARED_FORM)
 
         for x in shared_forms:
             form.relate_to(x, Homonymy.SHARED_FORM)
@@ -52,19 +54,25 @@ class HomonymyAnalyzer:
             .difference_tags(element.value.part_of_speech)
         )
 
-        if len(homonym_elements) > 0:
-            element.tag(Homonymy.HOMONYM)
-            if Regularity.CORRECT_FORM in element.tags:
-                self._index.lemmas[element.value.lemma_tag].tag(Homonymy.HOMONYM)
+        if len(homonym_elements) == 0:
+            return set()
+
+        element.tag(Homonymy.HOMONYM)
+        if Regularity.CORRECT_FORM in element.tags:
+            self._index.lemmas[element.value.lemma_tag].tag(Homonymy.HOMONYM)
 
         for homonym_element in homonym_elements:
             if element.value.graphic_form in homonym_element.tags:
+                element.tag(Homonymy.HOMOGRAPH)
                 element.relate_to(homonym_element, Homonymy.HOMOGRAPH)
             elif element.value.phonetic_form in homonym_element.tags:
+                element.tag(Homonymy.HOMOPHONE)
                 element.relate_to(homonym_element, Homonymy.HOMOPHONE)
             elif element.value.graphic_form_no_stress in homonym_element.tags:
+                element.tag(Homonymy.HETERONYM)
                 element.relate_to(homonym_element, Homonymy.HETERONYM)
             else:
+                element.tag(Homonymy.PARONYM)
                 element.relate_to(homonym_element, Homonymy.PARONYM)
 
         return homonym_elements
