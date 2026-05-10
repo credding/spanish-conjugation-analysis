@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import Hashable
-from typing import NamedTuple, TypedDict, cast
+from typing import NamedTuple, TypeAlias, TypedDict, cast
 
 from annotated_string import AnnotatedString
 from spanish_conjugation import annotate_verb_form_affix
@@ -27,10 +29,10 @@ from .grammar_index_model import (
     MappedVerbForm,
 )
 
-type TaggedLemma = TaggedItem[Lemma, MappedLemma]
-type TaggedVerb = TaggedItem[Verb, MappedVerb]
-type TaggedElement = TaggedItem[Element, MappedElement]
-type TaggedVerbForm = TaggedItem[VerbForm, MappedVerbForm]
+TaggedLemma: TypeAlias = TaggedItem[Lemma, MappedLemma]
+TaggedVerb: TypeAlias = TaggedItem[Verb, MappedVerb]
+TaggedElement: TypeAlias = TaggedItem[Element, MappedElement]
+TaggedVerbForm: TypeAlias = TaggedItem[VerbForm, MappedVerbForm]
 
 
 class GrammarIndex:

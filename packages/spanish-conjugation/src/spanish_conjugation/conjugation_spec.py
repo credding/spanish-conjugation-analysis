@@ -2,7 +2,7 @@ import csv
 import re
 from dataclasses import dataclass
 from importlib.resources import files
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 from spanish_grammar import Inflection, Subject, Tense, Variant, Verb
 from spanish_phonology.phonetics import TRANSLATE_ADD_STRESS
@@ -36,7 +36,7 @@ def _load_conjugation_spec_lookup() -> dict[_ConjugationSpecKey, ConjugationSpec
 
 
 def _read_conjugation_spec_rows() -> dict[_ConjugationSpecKey, dict[str, Any]]:
-    conjugation_data_path = files() / "regular_conjugation.csv"
+    conjugation_data_path = files(cast("str", __package__)) / "regular_conjugation.csv"
     result: dict[_ConjugationSpecKey, dict[str, Any]] = {}
     with conjugation_data_path.open("r") as f:
         for row in csv.DictReader(f, dialect=csv.unix_dialect):

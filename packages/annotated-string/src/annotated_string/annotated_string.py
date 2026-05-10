@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from abc import ABC
 from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field, replace
-from typing import Concatenate
+from typing import Concatenate, ParamSpec, TypeVar
 
 
 @dataclass(repr=False)
@@ -40,6 +42,10 @@ class StringAnnotation(ABC):
         )
 
 
+_T = TypeVar("_T", bound=StringAnnotation)
+_P = ParamSpec("_P")
+
+
 @dataclass(eq=False)
 class AnnotatedString:
     string: str
@@ -49,21 +55,21 @@ class AnnotatedString:
     def annotations(self) -> list[StringAnnotation]:
         return [*self._annotations.values()]
 
-    def annotate[T: StringAnnotation, **P](
+    def annotate(
         self,
-        annotation_type: Callable[Concatenate[str, int, int, P], T],
+        annotation_type: Callable[Concatenate[str, int, int, _P], _T],
         /,
         start: int | None = None,
         stop: int | None = None,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> T:
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> _T:
         start, stop, _ = slice(start, stop).indices(len(self.string))
         annotation = annotation_type(self.string, start, stop, *args, **kwargs)
         self.add_annotation(annotation)
         return annotation
 
-    def add_annotation[T: StringAnnotation](self, annotation: T, /) -> None:
+    def add_annotation(self, annotation: _T, /) -> None:
         if annotation.string != self.string:
             msg = f"annotation {annotation} is not for this string"
             raise ValueError(msg)
@@ -72,14 +78,12 @@ class AnnotatedString:
             raise ValueError(msg)
         self._annotations[annotation.unique_key] = annotation
 
-    def get_annotations[T: StringAnnotation](self, annotation_type: type[T]) -> list[T]:
+    def get_annotations(self, annotation_type: type[_T]) -> list[_T]:
         return sorted(
             x for x in self._annotations.values() if isinstance(x, annotation_type)
         )
 
-    def get_annotation_or_none[T: StringAnnotation](
-        self, annotation_type: type[T]
-    ) -> T | None:
+    def get_annotation_or_none(self, annotation_type: type[_T]) -> _T | None:
         annotations = self.get_annotations(annotation_type)
         if len(annotations) > 1:
             msg = (
@@ -89,7 +93,7 @@ class AnnotatedString:
             raise ValueError(msg)
         return annotations[0] if len(annotations) > 0 else None
 
-    def get_annotation[T: StringAnnotation](self, annotation_type: type[T]) -> T:
+    def get_annotation(self, annotation_type: type[_T]) -> _T:
         annotation = self.get_annotation_or_none(annotation_type)
         if annotation is None:
             msg = (

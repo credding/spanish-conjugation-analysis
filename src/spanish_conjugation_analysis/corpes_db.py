@@ -33,7 +33,7 @@ class CORPESDB:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
         with (
-            sqlite3.connect(self._db_path, autocommit=False) as conn,
+            sqlite3.connect(self._db_path) as conn,
             closing(conn.cursor()) as cur,
         ):
             cur.executescript(_corpes_schema_path.read_text())

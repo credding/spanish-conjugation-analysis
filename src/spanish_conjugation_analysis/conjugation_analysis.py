@@ -1,6 +1,7 @@
 from collections import defaultdict
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, replace
+from typing import TypeVar
 
 from annotated_string import AnnotatedString, StringAnnotation
 from ordered_enum import OrderedEnum
@@ -50,7 +51,7 @@ class Irregularity(StringAnnotation):
         return (
             f"{type(self).__name__}("
             f"{self.string[: self.start]}"
-            f"[{self.diff_text or "''"} -> {self.text or "''"}]"
+            f"[{self.diff_text or ''''''} -> {self.text or ''''''}]"
             f"{self.string[self.stop :]})"
             f"{super().__repr__()[:-1]}, "
             f"regularity={self.regularity!r})"
@@ -323,12 +324,15 @@ def _get_phoneme_text_index(phonemes: Sequence[Phoneme], index: int) -> int:
     return phonemes[index].start if index < len(phonemes) else len(phonemes[-1].string)
 
 
-def _get_diff_range[T](
-    string: Sequence[T],
-    diff_string: Sequence[T],
+_T = TypeVar("_T")
+
+
+def _get_diff_range(
+    string: Sequence[_T],
+    diff_string: Sequence[_T],
     /,
     *,
-    eq: Callable[[T, T], bool] = lambda x, y: x == y,
+    eq: Callable[[_T, _T], bool] = lambda x, y: x == y,
 ) -> tuple[int, int] | None:
     start = 0
     while (
