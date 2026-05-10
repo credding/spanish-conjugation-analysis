@@ -1,9 +1,10 @@
 from collections.abc import Hashable
 
+from annotated_string import StringAnnotation
 from pydantic import HttpUrl
+from spanish_conjugation import VerbAffix, VerbSubject, VerbVariant
+from spanish_phonology import Stress, Syllable
 
-from .affix_analysis import VerbAffix, VerbSubject, VerbVariant
-from .annotated_string import StringAnnotation
 from .conjugation_analysis import Irregularity, Regularity
 from .export_model import (
     ExportData,
@@ -18,8 +19,6 @@ from .export_model import (
 from .grammar_index import TaggedElement, TaggedLemma
 from .grammar_index_model import MappedElement, MappedLemma, MappedVerb, MappedVerbForm
 from .homonymy_analysis import Homonymy
-from .stress_analysis import Stress
-from .syllable_analysis import Syllable
 
 
 def build_export_data(
@@ -46,7 +45,7 @@ def _element_sort(tagged_element: TaggedElement) -> tuple:
             -element.lemma.freq_adj,
             element.lemma.base_form,
             element.lemma.part_of_speech,
-            element.conjug_tag,
+            element.inflection,
             -(Regularity.CORRECT_FORM in tagged_element.tags),
             -(Regularity.REGULAR_MORPHOLOGY in tagged_element.tags),
             -(Regularity.REGULAR_CONSTRUCTION in tagged_element.tags),

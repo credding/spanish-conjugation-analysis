@@ -7,21 +7,21 @@ from urllib.parse import quote
 
 import joblib
 from bs4 import Tag
-
-from .dle_model import DLELemma, DLEVerb, DLEVerbForm
-from .dle_web import DLEPage, DLEWeb
-from .grammar_base_model import (
-    SUBJECT_GROUPS,
-    ConjugationTag,
-    LemmaTag,
+from spanish_grammar import (
+    Inflection,
+    Lemma,
     PartOfSpeech,
     Subject,
     Tense,
     Variant,
-    VerbFormTag,
-    VerbTag,
+    Verb,
+    VerbForm,
 )
-from .phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+from spanish_phonology.phonetics import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+
+from .dle_model import DLELemma, DLEVerb, DLEVerbForm
+from .dle_web import DLEPage, DLEWeb
+from .grammar_base_model import SUBJECT_GROUPS
 
 _logger = logging.getLogger(__name__)
 
@@ -35,17 +35,17 @@ class DLE:
         self._get_verb = memory.cache(_get_verb)
         self._get_verb_forms = memory.cache(_get_verb_forms)
 
-    def get_lemma(self, lemma_tag: LemmaTag) -> DLELemma | None:
-        page = self._dle_web.get_page(lemma_tag.base_form)
-        return self._get_lemma(page, lemma_tag)
+    def get_lemma(self, lemma: Lemma) -> DLELemma | None:
+        page = self._dle_web.get_page(lemma.base_form)
+        return self._get_lemma(page, lemma)
 
-    def get_verb(self, verb_tag: VerbTag) -> DLEVerb:
-        page = self._dle_web.get_page(verb_tag.base_form)
-        return self._get_verb(page, verb_tag)
+    def get_verb(self, verb: Verb) -> DLEVerb:
+        page = self._dle_web.get_page(verb.base_form)
+        return self._get_verb(page, verb)
 
-    def get_verb_forms(self, verb_tag: VerbTag) -> list[DLEVerbForm]:
-        page = self._dle_web.get_page(verb_tag.base_form)
-        return self._get_verb_forms(page, verb_tag)
+    def get_verb_forms(self, verb: Verb) -> list[DLEVerbForm]:
+        page = self._dle_web.get_page(verb.base_form)
+        return self._get_verb_forms(page, verb)
 
 
 _PART_OF_SPEECH_ABBRS = {
@@ -71,27 +71,27 @@ _PART_OF_SPEECH_ABBRS = {
 _NUMERAL_PATTERN = re.compile(r"^\d+. ")
 
 
-def _get_lemma(page: DLEPage, lemma_tag: LemmaTag) -> DLELemma | None:
-    _logger.info("parsing lemma data for %s", lemma_tag)
+def _get_lemma(page: DLEPage, lemma: Lemma) -> DLELemma | None:
+    _logger.info("parsing lemma data for %s", lemma)
 
-    dle_url = _get_dle_url(page, lemma_tag)
+    dle_url = _get_dle_url(page, lemma)
     if dle_url is None:
         return None
 
-    lemma_tag = LemmaTag(lemma_tag.base_form, lemma_tag.part_of_speech)
-    return DLELemma(lemma_tag, dle_url)
+    lemma = Lemma(lemma.base_form, lemma.part_of_speech)
+    return DLELemma(lemma, dle_url)
 
 
-def _get_dle_url(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
-    article_id = _find_article_id(page, lemma_tag)
+def _get_dle_url(page: DLEPage, lemma: Lemma) -> str | None:
+    article_id = _find_article_id(page, lemma)
     if article_id is None:
         return None
 
     return f"{page.url}#{quote(article_id)}"
 
 
-def _find_article_id(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
-    abbrs = _PART_OF_SPEECH_ABBRS[lemma_tag.part_of_speech]
+def _find_article_id(page: DLEPage, lemma: Lemma) -> str | None:
+    abbrs = _PART_OF_SPEECH_ABBRS[lemma.part_of_speech]
 
     for tag in page.document.find_all(class_="c-definitions__item"):
         def_text = _NUMERAL_PATTERN.sub("", tag.get_text())
@@ -100,12 +100,12 @@ def _find_article_id(page: DLEPage, lemma_tag: LemmaTag) -> str | None:
             if def_text.startswith(abbr):
                 article = tag.find_parent("article")
                 if article is None:
-                    msg = f"missing article for {lemma_tag}"
+                    msg = f"missing article for {lemma}"
                     raise ValueError(msg)
 
                 article_id = article["id"]
                 if not isinstance(article_id, str):
-                    msg = f"invalid article id for {lemma_tag}"
+                    msg = f"invalid article id for {lemma}"
                     raise ValueError(msg)
 
                 return article_id
@@ -117,16 +117,16 @@ _CONJUG_MODELO_PATTERN = re.compile(r"\bConjug\. modelo\b")
 _CONJUG_C_PATTERN = re.compile(r"\bConjug\.(?: actual)? c\. (\w+\b(?: o c\. \w+\b)*)")
 
 
-def _get_verb(page: DLEPage, verb_tag: VerbTag) -> DLEVerb:
-    _logger.info("parsing verb data for %s", verb_tag)
+def _get_verb(page: DLEPage, verb: Verb) -> DLEVerb:
+    _logger.info("parsing verb data for %s", verb)
 
-    dle_url = _get_dle_url(page, verb_tag)
+    dle_url = _get_dle_url(page, verb)
     if dle_url is None:
-        msg = f"could not find DLE url for {verb_tag}"
+        msg = f"could not find DLE url for {verb}"
         raise ValueError(msg)
 
     is_model_verb = False
-    model_verbs: list[VerbTag] = []
+    model_verbs: list[Verb] = []
 
     for tag in page.document.find_all(class_="c-text-intro"):
         conjug_modelo = _CONJUG_MODELO_PATTERN.search(tag.get_text())
@@ -135,10 +135,10 @@ def _get_verb(page: DLEPage, verb_tag: VerbTag) -> DLEVerb:
 
         conjug_c = _CONJUG_C_PATTERN.search(tag.get_text())
         if conjug_c is not None:
-            model_verbs.extend(VerbTag(x) for x in conjug_c.group(1).split(" o c. "))
+            model_verbs.extend(Verb(x) for x in conjug_c.group(1).split(" o c. "))
 
-    verb_tag = VerbTag(page.word)
-    return DLEVerb(verb_tag, dle_url, is_model_verb, model_verbs)
+    verb = Verb(page.word)
+    return DLEVerb(verb, dle_url, is_model_verb, model_verbs)
 
 
 _TENSES = {
@@ -180,8 +180,8 @@ _REFLEXIVE_PRONOUNS = {
 }
 
 
-def _get_verb_forms(page: DLEPage, verb_tag: VerbTag) -> list[DLEVerbForm]:
-    _logger.info("parsing verb forms for %s", verb_tag)
+def _get_verb_forms(page: DLEPage, verb: Verb) -> list[DLEVerbForm]:
+    _logger.info("parsing verb forms for %s", verb)
 
     verb_forms: list[DLEVerbForm] = []
 
@@ -198,13 +198,13 @@ def _get_verb_forms(page: DLEPage, verb_tag: VerbTag) -> list[DLEVerbForm]:
     for mood_group in conjugation_section.find_all(class_="c-collapse"):
         mood_id: str = cast("str", mood_group["id"])
         for table_tag in mood_group.find_all("table"):
-            verb_forms.extend(_parse_conjugation_table(verb_tag, mood_id, table_tag))
+            verb_forms.extend(_parse_conjugation_table(verb, mood_id, table_tag))
 
     return verb_forms
 
 
 def _parse_conjugation_table(
-    verb_tag: VerbTag, mood_id: str, table: Tag
+    verb: Verb, mood_id: str, table: Tag
 ) -> Iterable[DLEVerbForm]:
     table_norm = _normalize_table(table)
 
@@ -230,20 +230,12 @@ def _parse_conjugation_table(
                     col_header = col_headers.get(col_idx)
                     if col_header is not None:
                         yield from _parse_conjugation_cell(
-                            verb_tag,
-                            mood_id,
-                            col_header,
-                            row_header,
-                            cell_tag.get_text(),
+                            verb, mood_id, col_header, row_header, cell_tag.get_text()
                         )
 
 
 def _parse_conjugation_cell(
-    verb_tag: VerbTag,
-    mood_id: str,
-    col_header: str,
-    row_header: str | None,
-    cell_text: str,
+    verb: Verb, mood_id: str, col_header: str, row_header: str | None, cell_text: str
 ) -> Iterable[DLEVerbForm]:
     tense = _TENSES.get((mood_id, col_header))
     if tense is None:
@@ -259,7 +251,7 @@ def _parse_conjugation_cell(
 
     for subject, subject_form in zip(subjects, subject_forms, strict=True):
         if (tense, subject) not in _REDUNDANT_SUBJECTS:
-            yield from _parse_form(verb_tag, tense, subject, subject_form)
+            yield from _parse_form(verb, tense, subject, subject_form)
 
 
 def _normalize_table(table: Tag) -> list[list[Tag]]:
@@ -289,7 +281,7 @@ def _normalize_table(table: Tag) -> list[list[Tag]]:
 
 
 def _parse_form(
-    verb_tag: VerbTag, tense: Tense, subject: Subject, forms_text: str
+    verb: Verb, tense: Tense, subject: Subject, forms_text: str
 ) -> Iterable[DLEVerbForm]:
     for i, form_text in enumerate(_FORM_DELIM_PATTERN.split(forms_text)):
         form_parts = _FORM_PATTERN.fullmatch(form_text)
@@ -304,22 +296,22 @@ def _parse_form(
             variant = None
             preference = i
 
-        form = _remove_reflexive_pronoun(verb_tag, form_parts[1], tense, subject)
-        form_tag = VerbFormTag(verb_tag, form, ConjugationTag(tense, subject, variant))
+        form = _remove_reflexive_pronoun(verb, form_parts[1], tense, subject)
+        form_tag = VerbForm(verb, form, Inflection(tense, subject, variant))
         yield DLEVerbForm(form_tag, preference)
 
         if form_parts[2]:
             subject = Subject(form_parts[2])
 
-            form = _remove_reflexive_pronoun(verb_tag, form_parts[3], tense, subject)
-            form_tag = VerbFormTag(verb_tag, form, ConjugationTag(tense, subject, None))
+            form = _remove_reflexive_pronoun(verb, form_parts[3], tense, subject)
+            form_tag = VerbForm(verb, form, Inflection(tense, subject, None))
             yield DLEVerbForm(form_tag, 0)
 
 
 def _remove_reflexive_pronoun(
-    verb_tag: VerbTag, form: str, tense: Tense, subject: Subject
+    verb: Verb, form: str, tense: Tense, subject: Subject
 ) -> str:
-    if not verb_tag.is_reflexive:
+    if not verb.is_reflexive:
         return form
 
     pronoun = _REFLEXIVE_PRONOUNS[subject]

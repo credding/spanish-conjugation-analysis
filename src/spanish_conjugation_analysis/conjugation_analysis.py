@@ -2,17 +2,19 @@ from collections import defaultdict
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, replace
 
-from .annotated_string import AnnotatedString, StringAnnotation
-from .conjugation import (
+from annotated_string import AnnotatedString, StringAnnotation
+from ordered_enum import OrderedEnum
+from spanish_conjugation import (
     RegularMorphologyConjugator,
     RegularSpellingConjugator,
     VerbConjugator,
 )
-from .grammar_base_model import ConjugationTag, VerbFormTag, VerbTag
+from spanish_grammar import Inflection, Verb, VerbForm
+from spanish_phonology import Phoneme, annotate_phonemes
+from spanish_phonology.phonetics import TRANSLATE_REMOVE_DIACRITICS
+
 from .grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
 from .grammar_index_model import IndexVerbForm, MappedVerbForm
-from .ordered_enum import OrderedEnum
-from .phonetic_analysis import TRANSLATE_REMOVE_DIACRITICS, Phoneme, annotate_phonemes
 
 
 class Regularity(OrderedEnum):
@@ -60,7 +62,7 @@ class _RegularConstructionConjugator(RegularMorphologyConjugator):
         self._index = index
 
     def _get_from_forms(
-        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
+        self, verb_tag: Verb, from_conjug: Inflection | None
     ) -> list[AnnotatedString]:
         if from_conjug is None:
             return []
@@ -131,11 +133,11 @@ class ConjugationAnalyzer:
             form.tag(Regularity.REGULAR_SPELLING)
 
     def tag_verb_regularity(self, verb: TaggedVerb) -> None:
-        correct_form_tags: dict[ConjugationTag, set[Hashable]] = defaultdict(set)
+        correct_form_tags: dict[Inflection, set[Hashable]] = defaultdict(set)
         for form in self._index.lookup_verb_forms(
             Regularity.CORRECT_FORM, verb.value.lemma_tag
         ):
-            correct_form_tags[form.value.conjug_tag].update(form.tags)
+            correct_form_tags[form.value.inflection].update(form.tags)
 
         def _tag(regular_tag: Regularity | None, irregular_tag: Hashable) -> None:
             if all(regular_tag in x for x in correct_form_tags.values()):
@@ -149,10 +151,10 @@ class ConjugationAnalyzer:
         _tag(None, Regularity.REGULAR_SPELLING_CHANGE)
 
     def _index_reg_forms(
-        self, form_tag: VerbFormTag, conjugator: VerbConjugator, regularity: Regularity
+        self, form_tag: VerbForm, conjugator: VerbConjugator, regularity: Regularity
     ) -> int:
         reg_annotated_forms = conjugator.conjugate(
-            form_tag.lemma_tag, form_tag.conjug_tag
+            form_tag.lemma_tag, form_tag.inflection
         )
 
         for i, reg_annotated_form in enumerate(reg_annotated_forms):
@@ -169,7 +171,7 @@ class ConjugationAnalyzer:
 
     def _lookup_reg_spell_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
         reg_spell_forms = self._index.lookup_verb_forms(
-            Regularity.REGULAR_SPELLING, form.value.lemma_tag, form.value.conjug_tag
+            Regularity.REGULAR_SPELLING, form.value.lemma_tag, form.value.inflection
         )
         reg_spell_forms -= {
             x for x in reg_spell_forms if Regularity.REGULAR_SPELLING_CHANGE in x.tags
@@ -185,7 +187,7 @@ class ConjugationAnalyzer:
 
     def _lookup_reg_morph_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
         reg_morph_forms = self._index.lookup_verb_forms(
-            Regularity.REGULAR_MORPHOLOGY, form.value.lemma_tag, form.value.conjug_tag
+            Regularity.REGULAR_MORPHOLOGY, form.value.lemma_tag, form.value.inflection
         )
 
         if len(reg_morph_forms) != 1:
@@ -198,7 +200,7 @@ class ConjugationAnalyzer:
 
     def _lookup_reg_constr_form(self, form: TaggedVerbForm) -> TaggedVerbForm | None:
         reg_constr_forms = self._index.lookup_verb_forms(
-            Regularity.REGULAR_CONSTRUCTION, form.value.lemma_tag, form.value.conjug_tag
+            Regularity.REGULAR_CONSTRUCTION, form.value.lemma_tag, form.value.inflection
         )
         if len(reg_constr_forms) == 0:
             return None

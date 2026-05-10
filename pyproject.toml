@@ -1,13 +1,18 @@
 [project]
 name = "spanish-conjugation-analysis"
-version = "0.1.0"
+version = "0.0.1"
 description = "Analyze Spanish verb forms"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "curl-cffi>=0.15.0",
     "joblib>=1.5.3",
+    "ordered-enum>=0.0.10",
     "pydantic>=2.13.4",
+    "annotated-string==0.0.1",
+    "tagged-index==0.0.1",
+    "spanish-conjugation==0.0.1",
+    "spanish-phonology==0.0.1",
 ]
 
 [dependency-groups]
@@ -15,8 +20,18 @@ dev = [
     "joblib-stubs>=1.5.3.1.20260117",
     "pytest>=9.0.3",
     "ruff>=0.15.12",
-    "ty>=0.0.34",
+    "ty>=0.0.35",
 ]
+
+[tool.uv.sources]
+annotated-string = { workspace = true }
+spanish-conjugation = { workspace = true }
+spanish-grammar = { workspace = true }
+spanish-phonology = { workspace = true }
+tagged-index = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
 
 [project.scripts]
 spanish-conjugation-analysis = "spanish_conjugation_analysis:main"

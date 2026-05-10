@@ -1,6 +1,8 @@
 import logging
 import time
 
+from spanish_grammar import PartOfSpeech, Verb
+
 from .conjugation_analysis import ConjugationAnalyzer, Regularity
 from .corpes import CORPES
 from .corpes_db import CORPESDB
@@ -8,7 +10,6 @@ from .corpes_model import FreqLemma
 from .dle import DLE
 from .dle_web import DLEWeb
 from .export_data import build_export_data
-from .grammar_base_model import PartOfSpeech, VerbTag
 from .grammar_index import GrammarIndex, TaggedVerb
 from .grammar_index_model import IndexElement, IndexLemma, IndexVerb, IndexVerbForm
 from .homonymy_analysis import Homonymy, HomonymyAnalyzer
@@ -25,17 +26,16 @@ TOP_ELEMENTS_FREQ_THRESHOLD = 10
 def main() -> None:
     configure_logging()
 
+    start_time = time.perf_counter()
+
     corpes_db = CORPESDB(obj_path / "corpes.db")
+    corpes_db.initialize()
     corpes = CORPES(corpes_db)
 
     dle_web = DLEWeb(cache_dir=obj_path / "dle_web")
     dle = DLE(dle_web, cache_dir=obj_path / "cache")
 
     ctx = Context(corpes, dle)
-
-    start_time = time.perf_counter()
-
-    corpes_db.initialize()
 
     ctx.index_top_corpes_lemmas()
     ctx.index_top_corpes_elements()
@@ -101,7 +101,7 @@ class Context:
         _logger.info("indexed %d lemma(s), %d verb(s)", lemma_count, verb_count)
 
     def _index_freq_lemma_verb(self, freq_lemma: FreqLemma) -> TaggedVerb:
-        dle_verb = self._dle.get_verb(VerbTag(freq_lemma.base_form))
+        dle_verb = self._dle.get_verb(Verb(freq_lemma.base_form))
 
         verb = self._grammar_index.index_verb(
             IndexVerb(
@@ -118,8 +118,8 @@ class Context:
 
         return verb
 
-    def _index_verb(self, verb_tag: VerbTag) -> TaggedVerb:
-        freq_lemma = self._corpes.get_lemma(verb_tag)
+    def _index_verb(self, verb: Verb) -> TaggedVerb:
+        freq_lemma = self._corpes.get_lemma(verb)
         return self._index_freq_lemma_verb(freq_lemma)
 
     def index_top_corpes_elements(self) -> None:
@@ -156,7 +156,7 @@ class Context:
 
     def _index_verb_list(self, list_name: str) -> list[TaggedVerb]:
         result: list[TaggedVerb] = [
-            self._index_verb(VerbTag(base_form))
+            self._index_verb(Verb(base_form))
             for base_form in (resources_path / list_name).read_text().splitlines()
         ]
 

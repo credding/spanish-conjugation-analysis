@@ -1,6 +1,7 @@
+from importlib.resources import files
 from pathlib import Path
 
-resources_path = Path(__file__).resolve().parent / "resources"
+resources_path = files() / "resources"
 
 artifacts_path = Path("artifacts").resolve()
 obj_path = artifacts_path / "obj"

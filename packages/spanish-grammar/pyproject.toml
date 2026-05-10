@@ -1,0 +1,10 @@
+[project]
+name = "spanish-grammar"
+version = "0.0.1"
+dependencies = [
+    "ordered-enum>=0.0.10,<0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.12,<0.12"]
+build-backend = "uv_build"

@@ -119,7 +119,7 @@ def _load_table_tsv(
     )
 
     tsv_path = _corpes_data_path / tsv_name
-    with tsv_path.open("r", newline="") as f:
+    with tsv_path.open("r") as f:
         for _ in range(skip_lines):
             next(f)
         reader = csv.DictReader(f, fieldnames=fieldnames, dialect=_corpes_tsv_dialect)

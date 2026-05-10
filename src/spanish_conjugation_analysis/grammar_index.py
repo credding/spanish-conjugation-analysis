@@ -1,9 +1,21 @@
 from collections.abc import Hashable
 from typing import NamedTuple, TypedDict, cast
 
-from .affix_analysis import annotate_verb_form_affix
-from .annotated_string import AnnotatedString
-from .grammar_base_model import ElementTag, LemmaTag, PartOfSpeech, VerbFormTag, VerbTag
+from annotated_string import AnnotatedString
+from spanish_conjugation import annotate_verb_form_affix
+from spanish_grammar import Element, Lemma, PartOfSpeech, Verb, VerbForm
+from spanish_phonology import (
+    PhoneticForm,
+    annotate_phonemes,
+    annotate_stress,
+    annotate_syllables,
+    get_graphic_form,
+    get_graphic_form_no_stress,
+    get_phonetic_form,
+    get_phonetic_form_no_stress,
+)
+from tagged_index import TaggedIndex, TaggedItem
+
 from .grammar_index_model import (
     IndexElement,
     IndexLemma,
@@ -14,28 +26,17 @@ from .grammar_index_model import (
     MappedVerb,
     MappedVerbForm,
 )
-from .phonetic_analysis import (
-    PhoneticForm,
-    annotate_phonemes,
-    get_graphic_form,
-    get_graphic_form_no_stress,
-    get_phonetic_form,
-    get_phonetic_form_no_stress,
-)
-from .stress_analysis import annotate_stress
-from .syllable_analysis import annotate_syllables
-from .tagged_index import TaggedIndex, TaggedItem
 
-type TaggedLemma = TaggedItem[LemmaTag, MappedLemma]
-type TaggedVerb = TaggedItem[VerbTag, MappedVerb]
-type TaggedElement = TaggedItem[ElementTag, MappedElement]
-type TaggedVerbForm = TaggedItem[VerbFormTag, MappedVerbForm]
+type TaggedLemma = TaggedItem[Lemma, MappedLemma]
+type TaggedVerb = TaggedItem[Verb, MappedVerb]
+type TaggedElement = TaggedItem[Element, MappedElement]
+type TaggedVerbForm = TaggedItem[VerbForm, MappedVerbForm]
 
 
 class GrammarIndex:
     def __init__(self) -> None:
-        self.lemmas: TaggedIndex[LemmaTag, MappedLemma] = TaggedIndex()
-        self.elements: TaggedIndex[ElementTag, MappedElement] = TaggedIndex()
+        self.lemmas: TaggedIndex[Lemma, MappedLemma] = TaggedIndex()
+        self.elements: TaggedIndex[Element, MappedElement] = TaggedIndex()
 
     def index_lemma(self, lemma: IndexLemma, /) -> TaggedLemma:
         if lemma.lemma_tag in self.lemmas:
@@ -114,7 +115,7 @@ class GrammarIndex:
         verb = cast("TaggedVerb", self.lemmas[form.lemma_tag])
 
         annotated_form, phonetic_forms = _analyze_phonetics(form.form)
-        annotate_verb_form_affix(annotated_form, form.lemma_tag, form.conjug_tag)
+        annotate_verb_form_affix(annotated_form, form.lemma_tag, form.inflection)
 
         tagged_form = self.elements.index(
             form.element_tag,
@@ -132,7 +133,7 @@ class GrammarIndex:
             form.lemma_tag,
             form.part_of_speech,
             form.element_tag,
-            form.conjug_tag,
+            form.inflection,
             *phonetic_forms.values(),
         )
 

@@ -1,21 +1,21 @@
 import csv
 import re
 from dataclasses import dataclass
+from importlib.resources import files
 from typing import Any, NamedTuple
 
-from .grammar_base_model import ConjugationTag, Subject, Tense, Variant, VerbTag
-from .phonetic_analysis import TRANSLATE_ADD_STRESS
-from .resources import resources_path
+from spanish_grammar import Inflection, Subject, Tense, Variant, Verb
+from spanish_phonology.phonetics import TRANSLATE_ADD_STRESS
 
 
 class _ConjugationSpecKey(NamedTuple):
     ending: str
-    conjug_tag: ConjugationTag
+    inflection: Inflection
 
 
 @dataclass(frozen=True)
 class ConjugationSpec:
-    from_conjug: ConjugationTag | None
+    from_conjug: Inflection | None
     truncate_str: str
     pre_affix_stress: bool
     affix: str
@@ -24,9 +24,9 @@ class ConjugationSpec:
 
 
 def get_conjugation_spec(
-    verb_tag: VerbTag, conjug_tag: ConjugationTag
+    verb_tag: Verb, inflection: Inflection
 ) -> ConjugationSpec | None:
-    spec_key = _ConjugationSpecKey(verb_tag.ending, conjug_tag)
+    spec_key = _ConjugationSpecKey(verb_tag.ending, inflection)
     return _CONJUGATION_SPEC_LOOKUP.get(spec_key)
 
 
@@ -36,9 +36,9 @@ def _load_conjugation_spec_lookup() -> dict[_ConjugationSpecKey, ConjugationSpec
 
 
 def _read_conjugation_spec_rows() -> dict[_ConjugationSpecKey, dict[str, Any]]:
-    conjugation_data_path = resources_path / "regular_conjugation.csv"
+    conjugation_data_path = files() / "regular_conjugation.csv"
     result: dict[_ConjugationSpecKey, dict[str, Any]] = {}
-    with conjugation_data_path.open("r", newline="") as f:
+    with conjugation_data_path.open("r") as f:
         for row in csv.DictReader(f, dialect=csv.unix_dialect):
             tense = Tense(row["tense"])
             subjects = (
@@ -50,7 +50,7 @@ def _read_conjugation_spec_rows() -> dict[_ConjugationSpecKey, dict[str, Any]]:
             for ending in row["endings"].split(";"):
                 for subject in subjects or [Subject.IMPERSONAL]:
                     key = _ConjugationSpecKey(
-                        ending, ConjugationTag(tense, subject, variant)
+                        ending, Inflection(tense, subject, variant)
                     )
                     result[key] = row
     return result
@@ -62,7 +62,7 @@ def _build_conjugation_spec(
     row: dict[str, Any],
 ) -> ConjugationSpec:
     from_conjug = (
-        ConjugationTag(Tense(row["from_tense"]), Subject(row["from_subject"]), None)
+        Inflection(Tense(row["from_tense"]), Subject(row["from_subject"]), None)
         if row["from_tense"] or row["from_subject"]
         else None
     )

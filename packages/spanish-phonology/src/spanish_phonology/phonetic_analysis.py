@@ -1,48 +1,16 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from .annotated_string import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, StringAnnotation
 
-
-class SpellingType(Enum):
-    GRAPHIC = auto()
-    GRAPHIC_NO_STRESS = auto()
-    PHONETIC = auto()
-    PHONETIC_NO_STRESS = auto()
-
-
-@dataclass(frozen=True, slots=True)
-class PhoneticForm:
-    spelling_type: SpellingType
-    form: str
-
-
-def get_graphic_form(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(spelling_type=SpellingType.GRAPHIC, form=word.string)
-
-
-def get_graphic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.GRAPHIC_NO_STRESS,
-        form=word.string.translate(TRANSLATE_REMOVE_STRESS),
-    )
-
-
-def get_phonetic_form(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.PHONETIC,
-        form="".join(
-            x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
-            for x in word.get_annotations(Phoneme)
-        ),
-    )
-
-
-def get_phonetic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.PHONETIC_NO_STRESS,
-        form="".join(x.phoneme for x in word.get_annotations(Phoneme)),
-    )
+from .phonetics import (
+    SOFT_VOWELS,
+    STRESSED_VOWELS,
+    STRONG_VOWELS,
+    TRANSLATE_ADD_STRESS,
+    TRANSLATE_REMOVE_STRESS,
+    VOWELS,
+)
 
 
 class PhonemeKind(Enum):
@@ -67,17 +35,6 @@ class Phoneme(StringAnnotation):
             f"phoneme={self.phoneme!r})"
         )
 
-
-VOWELS = "aáeéiíoóuúü"
-STRESSED_VOWELS = "áéíóú"
-STRONG_VOWELS = "aáeéíoóú"
-WEAK_VOWELS = "iuü"
-HARD_VOWELS = "aáoóuúü"
-SOFT_VOWELS = "eéií"
-
-TRANSLATE_ADD_STRESS = str.maketrans("aeiou", "áéíóú")
-TRANSLATE_REMOVE_STRESS = str.maketrans("áéíóú", "aeiou")
-TRANSLATE_REMOVE_DIACRITICS = str.maketrans("áéíóúü", "aeiouu")
 
 _SUBSTITUTE_PHONEMES = {
     "á": "a",
@@ -173,3 +130,44 @@ def _annotate_vowel_phoneme(
 
 def _is_soft_vowel(word: str, pos: int) -> bool:
     return pos < len(word) and word[pos] in SOFT_VOWELS
+
+
+class SpellingType(Enum):
+    GRAPHIC = auto()
+    GRAPHIC_NO_STRESS = auto()
+    PHONETIC = auto()
+    PHONETIC_NO_STRESS = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class PhoneticForm:
+    spelling_type: SpellingType
+    form: str
+
+
+def get_graphic_form(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(spelling_type=SpellingType.GRAPHIC, form=word.string)
+
+
+def get_graphic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.GRAPHIC_NO_STRESS,
+        form=word.string.translate(TRANSLATE_REMOVE_STRESS),
+    )
+
+
+def get_phonetic_form(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.PHONETIC,
+        form="".join(
+            x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
+            for x in word.get_annotations(Phoneme)
+        ),
+    )
+
+
+def get_phonetic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
+    return PhoneticForm(
+        spelling_type=SpellingType.PHONETIC_NO_STRESS,
+        form="".join(x.phoneme for x in word.get_annotations(Phoneme)),
+    )

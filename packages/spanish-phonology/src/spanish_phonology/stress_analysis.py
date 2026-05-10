@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from .annotated_string import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, StringAnnotation
+
 from .syllable_analysis import Syllable
 
 

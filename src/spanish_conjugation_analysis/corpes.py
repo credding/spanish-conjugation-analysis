@@ -1,8 +1,9 @@
 from contextlib import closing
 
+from spanish_grammar import Element, Lemma, PartOfSpeech
+
 from .corpes_db import CORPESDB
 from .corpes_model import FreqElement, FreqLemma
-from .grammar_base_model import ElementTag, LemmaTag, PartOfSpeech
 
 _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "A": PartOfSpeech.ADJECTIVE,
@@ -42,37 +43,31 @@ class CORPES:
             )
             return [_map_lemma(x) for x in cur]
 
-    def get_top_elements(
-        self, lemma_tag: LemmaTag, gt_freq: int = 0
-    ) -> list[FreqElement]:
+    def get_top_elements(self, lemma: Lemma, gt_freq: int = 0) -> list[FreqElement]:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
                 "SELECT DISTINCT form FROM freq_elements "
                 "WHERE lemma = ? AND tag LIKE ? || '%' AND freq_norm_without_punc > ? "
                 "ORDER BY id;",
-                (
-                    lemma_tag.base_form,
-                    _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech],
-                    gt_freq,
-                ),
+                (lemma.base_form, _PARTS_OF_SPEECH_INV[lemma.part_of_speech], gt_freq),
             )
-            return [_map_element(lemma_tag, x) for x in cur]
+            return [_map_element(lemma, x) for x in cur]
 
-    def get_lemma(self, lemma_tag: LemmaTag) -> FreqLemma:
+    def get_lemma(self, lemma: Lemma) -> FreqLemma:
         with closing(self._conn.cursor()) as cur:
             cur.execute(
                 "SELECT lemma, class, freq_adj FROM dp_lemmas "
                 "WHERE (lemma, class) = (?, ?);",
-                (lemma_tag.base_form, _PARTS_OF_SPEECH_INV[lemma_tag.part_of_speech]),
+                (lemma.base_form, _PARTS_OF_SPEECH_INV[lemma.part_of_speech]),
             )
             return _map_lemma(cur.fetchone())
 
 
 def _map_lemma(row: dict) -> FreqLemma:
     return FreqLemma(
-        LemmaTag(row["lemma"], _PARTS_OF_SPEECH[row["class"]]), row["freq_adj"]
+        Lemma(row["lemma"], _PARTS_OF_SPEECH[row["class"]]), row["freq_adj"]
     )
 
 
-def _map_element(lemma_tag: LemmaTag, row: dict) -> FreqElement:
-    return FreqElement(ElementTag(lemma_tag, row["form"]))
+def _map_element(lemma: Lemma, row: dict) -> FreqElement:
+    return FreqElement(Element(lemma, row["form"]))

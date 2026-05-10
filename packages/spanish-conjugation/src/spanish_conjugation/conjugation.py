@@ -2,36 +2,31 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import replace
 
-from .annotated_string import AnnotatedString
-from .conjugation_spec import ConjugationSpec, get_conjugation_spec
-from .grammar_base_model import ConjugationTag, VerbTag
-from .phonetic_analysis import (
+from annotated_string import AnnotatedString
+from spanish_grammar import Inflection, Verb
+from spanish_phonology import Phoneme, annotate_next_phoneme, annotate_phonemes
+from spanish_phonology.phonetics import (
     HARD_VOWELS,
     SOFT_VOWELS,
     STRONG_VOWELS,
     TRANSLATE_ADD_STRESS,
     VOWELS,
-    Phoneme,
-    annotate_next_phoneme,
-    annotate_phonemes,
 )
+
+from .conjugation_spec import ConjugationSpec, get_conjugation_spec
 
 _logger = logging.getLogger(__name__)
 
 
 class VerbConjugator(ABC):
     @abstractmethod
-    def conjugate(
-        self, verb: VerbTag, conjug_tag: ConjugationTag
-    ) -> list[AnnotatedString]:
+    def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
         raise NotImplementedError
 
 
 class RegularSpellingConjugator(VerbConjugator):
-    def conjugate(
-        self, verb: VerbTag, conjug_tag: ConjugationTag
-    ) -> list[AnnotatedString]:
-        spec = get_conjugation_spec(verb, conjug_tag)
+    def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
+        spec = get_conjugation_spec(verb, inflection)
         if spec is None:
             return []
 
@@ -77,7 +72,7 @@ class RegularSpellingConjugator(VerbConjugator):
         return stem
 
     def _get_from_forms(
-        self, verb_tag: VerbTag, from_conjug: ConjugationTag | None
+        self, verb_tag: Verb, from_conjug: Inflection | None
     ) -> list[AnnotatedString]:
         if from_conjug is None:
             infinitive_form = AnnotatedString(verb_tag.infinitive)

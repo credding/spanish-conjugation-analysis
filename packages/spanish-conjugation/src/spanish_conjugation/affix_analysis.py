@@ -1,9 +1,10 @@
 from collections.abc import Hashable
 from dataclasses import dataclass
 
-from .annotated_string import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, StringAnnotation
+from spanish_grammar import Inflection, Subject, Verb
+
 from .conjugation_spec import get_conjugation_spec
-from .grammar_base_model import ConjugationTag, Subject, VerbTag
 
 
 @dataclass(repr=False)
@@ -29,7 +30,7 @@ class VerbVariant(AffixAnnotation):
 
 
 def annotate_verb_form_affix(
-    form: AnnotatedString, verb: VerbTag, conjug_tag: ConjugationTag
+    form: AnnotatedString, verb: Verb, conjug_tag: Inflection
 ) -> None:
     spec = get_conjugation_spec(verb, conjug_tag)
     if spec is None:

@@ -9,9 +9,9 @@ from pydantic import (
     field_serializer,
 )
 from pydantic.alias_generators import to_camel
+from spanish_grammar import PartOfSpeech, Subject, Tense, Variant
 
 from .conjugation_analysis import Regularity
-from .grammar_base_model import PartOfSpeech, Subject, Tense, Variant
 from .homonymy_analysis import Homonymy
 
 

@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from .annotated_string import AnnotatedString, StringAnnotation
-from .phonetic_analysis import STRESSED_VOWELS, Phoneme, PhonemeKind
+from annotated_string import AnnotatedString, StringAnnotation
+
+from .phonetic_analysis import Phoneme, PhonemeKind
+from .phonetics import STRESSED_VOWELS
 
 
 @dataclass(repr=False)

@@ -1,6 +1,7 @@
+from ordered_enum import OrderedEnum
+
 from .conjugation_analysis import Regularity
 from .grammar_index import GrammarIndex, TaggedElement
-from .ordered_enum import OrderedEnum
 
 
 class Homonymy(OrderedEnum):

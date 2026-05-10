@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 
-from .annotated_string import AnnotatedString
-from .grammar_base_model import BaseElement, BaseLemma, BaseVerb, BaseVerbForm, VerbTag
-from .phonetic_analysis import PhoneticForm
+from annotated_string import AnnotatedString
+from spanish_grammar import Verb
+from spanish_phonology import PhoneticForm
+
+from .grammar_base_model import BaseElement, BaseLemma, BaseVerb, BaseVerbForm
 
 
 @dataclass(kw_only=True)
@@ -13,7 +15,7 @@ class IndexLemma(BaseLemma):
 
 @dataclass(kw_only=True)
 class IndexVerb(IndexLemma, BaseVerb):
-    model_verbs: list[VerbTag]
+    model_verbs: list[Verb]
     study_order: int | None
 
 
@@ -36,7 +38,7 @@ class MappedLemma(BaseLemma):
 
 @dataclass(kw_only=True)
 class MappedVerb(MappedLemma, BaseVerb):
-    model_verbs: list[VerbTag]
+    model_verbs: list[Verb]
     study_order: int | None
 
 

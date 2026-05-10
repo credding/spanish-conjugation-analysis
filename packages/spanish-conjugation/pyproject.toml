@@ -1,0 +1,12 @@
+[project]
+name = "spanish-conjugation"
+version = "0.0.1"
+dependencies = [
+    "annotated-string==0.0.1",
+    "spanish-grammar==0.0.1",
+    "spanish-phonology==0.0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.12,<0.12"]
+build-backend = "uv_build"
