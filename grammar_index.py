@@ -24,7 +24,7 @@ from phonetic_analysis import (
 )
 from stress_analysis import annotate_stress
 from syllable_analysis import annotate_syllables
-from tagged_index import ResultSet, TaggedIndex, TaggedItem
+from tagged_index import TaggedIndex, TaggedItem
 
 type TaggedLemma = TaggedItem[LemmaTag, MappedLemma]
 type TaggedVerb = TaggedItem[VerbTag, MappedVerb]
@@ -73,12 +73,12 @@ class GrammarIndex:
 
         return cast("TaggedVerb", tagged_verb)
 
-    def lookup_lemmas(self, *tags: Hashable) -> ResultSet[TaggedLemma]:
+    def lookup_lemmas(self, *tags: Hashable) -> set[TaggedLemma]:
         return self.lemmas.lookup(*tags)
 
-    def lookup_verbs(self, *tags: Hashable) -> ResultSet[TaggedVerb]:
-        result = self.lemmas.lookup(*tags).intersection_tags(PartOfSpeech.VERB)
-        return cast("ResultSet[TaggedVerb]", result)
+    def lookup_verbs(self, *tags: Hashable) -> set[TaggedVerb]:
+        result = self.lemmas.lookup(PartOfSpeech.VERB, *tags)
+        return cast("set[TaggedVerb]", result)
 
     def index_element(self, element: IndexElement, /) -> TaggedElement:
         if element.element_tag in self.elements:
@@ -138,12 +138,12 @@ class GrammarIndex:
 
         return cast("TaggedVerbForm", tagged_form)
 
-    def lookup_elements(self, *tags: Hashable) -> ResultSet[TaggedElement]:
+    def lookup_elements(self, *tags: Hashable) -> set[TaggedElement]:
         return self.elements.lookup(*tags)
 
-    def lookup_verb_forms(self, *tags: Hashable) -> ResultSet[TaggedVerbForm]:
-        result = self.elements.lookup(*tags).intersection_tags(PartOfSpeech.VERB)
-        return cast("ResultSet[TaggedVerbForm]", result)
+    def lookup_verb_forms(self, *tags: Hashable) -> set[TaggedVerbForm]:
+        result = self.elements.lookup(PartOfSpeech.VERB, *tags)
+        return cast("set[TaggedVerbForm]", result)
 
 
 class _PhoneticAnalysisResult(NamedTuple):

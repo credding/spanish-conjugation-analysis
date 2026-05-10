@@ -10,7 +10,7 @@ class PartOfSpeech(OrderedEnum):
     ARTICLE = "artículo"
     CONJUNCTION = "conjunión"
     CONTRACTION = "contracción"
-    QUANTIFIER = "quantificador"
+    QUANTIFIER = "cuantificador"
     DEMONSTRATIVE = "demonstrativo"
     UNKNOWN = "desconocido"
     FOREIGN = "extranjerismo"
@@ -121,6 +121,11 @@ class ConjugationTag:
     tense: Tense
     subject: Subject
     variant: Variant | None
+
+    def __lt__(self, other: ConjugationTag) -> bool:
+        a = (self.tense, self.subject, self.variant is not None, self.variant)
+        b = (other.tense, other.subject, other.variant is not None, other.variant)
+        return a < b  # ty:ignore[unsupported-operator]
 
 
 @dataclass(frozen=True, slots=True)

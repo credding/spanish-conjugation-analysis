@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from annotated_string import AnnotatedString, StringAnnotation
 from syllable_analysis import Syllable
 
-_PENULTIMATE_STRESS_END_LETTERS = "aeiouns"
-
 
 @dataclass(repr=False)
 class Stress(StringAnnotation):
@@ -30,6 +28,6 @@ def _get_stressed_syllable(
 def _get_normal_stressed_syllable(
     word: AnnotatedString, syllables: list[Syllable]
 ) -> Syllable:
-    if len(syllables) >= 2 and word.string[-1] in _PENULTIMATE_STRESS_END_LETTERS:  # noqa: PLR2004
+    if len(syllables) >= 2 and word.string[-1] in "aeiouns":  # noqa: PLR2004
         return syllables[-2]
     return syllables[-1]

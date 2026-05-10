@@ -17,7 +17,7 @@ from export_model import (
 )
 from grammar_index import TaggedElement, TaggedLemma
 from grammar_index_model import MappedElement, MappedLemma, MappedVerb, MappedVerbForm
-from homonym_analysis import Homonymy
+from homonymy_analysis import Homonymy
 from stress_analysis import Stress
 from syllable_analysis import Syllable
 
@@ -46,9 +46,7 @@ def _element_sort(tagged_element: TaggedElement) -> tuple:
             -element.lemma.freq_adj,
             element.lemma.base_form,
             element.lemma.part_of_speech,
-            element.tense,
-            element.subject,
-            element.variant,
+            element.conjug_tag,
             -(Regularity.CORRECT_FORM in tagged_element.tags),
             -(Regularity.REGULAR_MORPHOLOGY in tagged_element.tags),
             -(Regularity.REGULAR_CONSTRUCTION in tagged_element.tags),
@@ -84,8 +82,8 @@ def _map_verb(tagged_lemma: TaggedLemma, verb: MappedVerb) -> ExportVerb:
         **dict(_map_lemma(verb)),
         models=[x.base_form for x in verb.model_verbs],
         study_order=verb.study_order,
-        regularity=sorted(tagged_lemma.get_tags(Regularity)),
-        homonymy=sorted(tagged_lemma.get_tags(Homonymy)),
+        regularity=sorted(x for x in tagged_lemma.tags if isinstance(x, Regularity)),
+        homonymy=sorted(x for x in tagged_lemma.tags if isinstance(x, Homonymy)),
     )
 
 
@@ -123,7 +121,7 @@ def _map_element(
         **dict(_map_element_id(element)),
         syllables=_map_syllables(element),
         stress_pos=_map_stress_position(element),
-        homonymy=sorted(tagged_element.get_tags(Homonymy)),
+        homonymy=sorted(x for x in tagged_element.tags if isinstance(x, Homonymy)),
         heteronymous_forms=_map_related_elements(
             tagged_element, Homonymy.HETERONYMOUS_FORM
         ),
@@ -146,7 +144,7 @@ def _map_verb_form(
         affix_range=_map_annotation_range(form, VerbAffix),
         subject_range=_map_annotation_range_or_none(form, VerbSubject),
         variant_range=_map_annotation_range_or_none(form, VerbVariant),
-        regularity=sorted(tagged_element.get_tags(Regularity)),
+        regularity=sorted(x for x in tagged_element.tags if isinstance(x, Regularity)),
         regular_spelling=_map_related_verb_form(
             tagged_element, Regularity.REGULAR_SPELLING
         ),
@@ -168,10 +166,7 @@ def _map_syllables(element: MappedElement) -> list[int]:
 def _map_stress_position(element: MappedElement) -> int:
     syllables = element.annotated_form.get_annotations(Syllable)
     stress = element.annotated_form.get_annotation(Stress)
-    stressed_syllable = element.annotated_form.get_annotation(
-        Syllable, stress.start, stress.stop
-    )
-    return syllables.index(stressed_syllable)
+    return next(i for i, x in enumerate(syllables) if x.start == stress.start)
 
 
 def _map_annotation_range(
@@ -191,12 +186,16 @@ def _map_annotation_range_or_none(
 
 
 def _map_irregularities(element: MappedElement) -> list[ExportIrregularity]:
-    irregularities = element.annotated_form.get_annotations(Irregularity)
     return sorted(
-        ExportIrregularity(
-            regularity=x.regularity, range=(x.start, x.stop), from_form=x.diff_string
-        )
-        for x in irregularities
+        (
+            ExportIrregularity(
+                regularity=x.regularity,
+                range=(x.start, x.stop),
+                from_form=x.diff_string,
+            )
+            for x in element.annotated_form.get_annotations(Irregularity)
+        ),
+        key=lambda x: x.regularity,
     )
 
 

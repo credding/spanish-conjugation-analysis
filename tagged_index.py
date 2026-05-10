@@ -21,23 +21,6 @@ class TaggedItem[KT: Hashable, VT]:
         for tag in tags:
             self._index._lookup[tag].add(self)  # noqa: SLF001
 
-    def get_tags[T: Hashable](self, tag_type: type[T]) -> set[T]:
-        return {x for x in self.tags if isinstance(x, tag_type)}
-
-    def get_tag_or_none[T: Hashable](self, tag_type: type[T]) -> T | None:
-        tags = self.get_tags(tag_type)
-        if len(tags) > 1:
-            msg = f"multiple tags of type {tag_type} found for item {self.value}"
-            raise ValueError(msg)
-        return tags.pop() if len(tags) > 0 else None
-
-    def get_tag[T: Hashable](self, tag_type: type[T]) -> T:
-        tag = self.get_tag_or_none(tag_type)
-        if tag is None:
-            msg = f"no tag of type {tag_type} found for item {self.value}"
-            raise KeyError(msg)
-        return tag
-
     def relate_to(self, other: TaggedItem[KT, VT], tag: Hashable) -> None:
         other.tag(Relationship(tag, self.key))
 
@@ -73,19 +56,9 @@ class TaggedIndex[KT: Hashable, VT](dict[KT, TaggedItem[KT, VT]]):
         self[key] = entry
         return entry
 
-    def lookup(self, *tags: Hashable) -> ResultSet[TaggedItem[KT, VT]]:
+    def lookup(self, *tags: Hashable) -> set[TaggedItem[KT, VT]]:
         if len(tags) == 0:
-            return ResultSet(self.values())
-        return ResultSet(set.intersection(*(self._lookup[tag] for tag in tags)))
-
-
-class ResultSet[T: TaggedItem](set[T]):
-    def difference_tags(self, *tags: Hashable) -> ResultSet[T]:
-        return ResultSet(
-            self.intersection({x for x in self if x.tags.isdisjoint(tags)})
-        )
-
-    def intersection_tags(self, *tags: Hashable) -> ResultSet[T]:
-        return ResultSet(
-            self.intersection({x for x in self if x.tags.issuperset(tags)})
-        )
+            return set(self.values())
+        sets = [self._lookup[tag] for tag in tags]
+        sets.sort(key=len)
+        return set.intersection(*sets)

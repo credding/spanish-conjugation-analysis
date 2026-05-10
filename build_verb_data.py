@@ -11,7 +11,7 @@ from export_data import build_export_data
 from grammar_base_model import PartOfSpeech, VerbTag
 from grammar_index import GrammarIndex, TaggedVerb
 from grammar_index_model import IndexElement, IndexLemma, IndexVerb, IndexVerbForm
-from homonym_analysis import Homonymy, HomonymyAnalyzer
+from homonymy_analysis import Homonymy, HomonymyAnalyzer
 from logging_config import configure_logging
 from resources import artifacts_path, obj_path, resources_path
 
@@ -111,9 +111,8 @@ class Context:
 
         top_elements = [
             ex
-            for lx in self._grammar_index.lookup_lemmas().difference_tags(
-                PartOfSpeech.VERB
-            )
+            for lx in self._grammar_index.lookup_lemmas()
+            if lx.value.part_of_speech is not PartOfSpeech.VERB
             for ex in self._corpes.get_top_elements(lx.key, TOP_ELEMENTS_FREQ_THRESHOLD)
             if ex.form.isalpha() and ex.form.islower()
         ]
@@ -144,7 +143,9 @@ class Context:
             self._index_verb(VerbTag(base_form))
             for base_form in (resources_path / list_name).read_text().splitlines()
         ]
+
         _logger.info("indexed %d verb(s)", len(result))
+
         return result
 
     def index_dle_model_verbs(self) -> None:
@@ -243,6 +244,7 @@ class Context:
         for form in self._grammar_index.lookup_elements(PartOfSpeech.VERB):
             self._homonymy_analyzer.tag_heteronymous_forms(form)
             self._homonymy_analyzer.tag_shared_forms(form)
+
             for homonym in self._homonymy_analyzer.tag_homonyms(form):
                 if homonym.value.part_of_speech is not PartOfSpeech.VERB:
                     self._homonymy_analyzer.tag_homonyms(homonym)
@@ -250,29 +252,20 @@ class Context:
     def export_verb_data(self) -> None:
         _logger.info("exporting verb data")
 
-        export_lemmas = self._grammar_index.lookup_lemmas(PartOfSpeech.VERB)
-        export_lemmas |= self._grammar_index.lookup_lemmas(Homonymy.HOMONYM)
-        export_elements = self._grammar_index.lookup_elements(PartOfSpeech.VERB)
-        export_elements |= self._grammar_index.lookup_elements(Homonymy.HOMONYM)
+        verbs = self._grammar_index.lookup_lemmas(PartOfSpeech.VERB)
+        lemmas = verbs | self._grammar_index.lookup_lemmas(Homonymy.HOMONYM)
+        verb_forms = self._grammar_index.lookup_elements(PartOfSpeech.VERB)
+        elements = verb_forms | self._grammar_index.lookup_elements(Homonymy.HOMONYM)
 
-        export_data = build_export_data(export_lemmas, export_elements)
+        export_data = build_export_data(lemmas, elements)
         export_json = export_data.model_dump_json(
             ensure_ascii=False, exclude_defaults=True
         )
         (artifacts_path / "verb_data.json").write_text(export_json)
 
+        _logger.info("exported %d lemma(s), %d verb(s)", len(lemmas), len(verbs))
         _logger.info(
-            "exported %d lemma(s), %d verb(s)",
-            len(export_data.lemmas),
-            sum(1 for x in export_data.lemmas if x.part_of_speech is PartOfSpeech.VERB),
-        )
-
-        _logger.info(
-            "exported %d element(s), %d verb form(s)",
-            len(export_data.elements),
-            sum(
-                1 for x in export_data.elements if x.part_of_speech is PartOfSpeech.VERB
-            ),
+            "exported %d element(s), %d verb form(s)", len(elements), len(verb_forms)
         )
 
 

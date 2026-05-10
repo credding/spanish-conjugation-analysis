@@ -72,33 +72,15 @@ class AnnotatedString:
             raise ValueError(msg)
         self._annotations[annotation.unique_key] = annotation
 
-    def get_annotations[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        /,
-        start: int | None = None,
-        stop: int | None = None,
-    ) -> list[T]:
-        start, stop, _ = slice(start, stop).indices(len(self.string))
+    def get_annotations[T: StringAnnotation](self, annotation_type: type[T]) -> list[T]:
         return sorted(
-            x
-            for x in self._annotations.values()
-            if isinstance(x, annotation_type)
-            and (
-                start <= x.start < stop
-                or start < x.stop <= stop
-                or start <= x.start == x.stop <= stop
-            )
+            x for x in self._annotations.values() if isinstance(x, annotation_type)
         )
 
     def get_annotation_or_none[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        /,
-        start: int | None = None,
-        stop: int | None = None,
+        self, annotation_type: type[T]
     ) -> T | None:
-        annotations = self.get_annotations(annotation_type, start, stop)
+        annotations = self.get_annotations(annotation_type)
         if len(annotations) > 1:
             msg = (
                 f"multiple annotations of type {annotation_type} "
@@ -107,14 +89,8 @@ class AnnotatedString:
             raise ValueError(msg)
         return annotations[0] if len(annotations) > 0 else None
 
-    def get_annotation[T: StringAnnotation](
-        self,
-        annotation_type: type[T],
-        /,
-        start: int | None = None,
-        stop: int | None = None,
-    ) -> T:
-        annotation = self.get_annotation_or_none(annotation_type, start, stop)
+    def get_annotation[T: StringAnnotation](self, annotation_type: type[T]) -> T:
+        annotation = self.get_annotation_or_none(annotation_type)
         if annotation is None:
             msg = (
                 f"no annotation of type {annotation_type} "

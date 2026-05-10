@@ -12,7 +12,7 @@ from pydantic.alias_generators import to_camel
 
 from conjugation_analysis import Regularity
 from grammar_base_model import PartOfSpeech, Subject, Tense, Variant
-from homonym_analysis import Homonymy
+from homonymy_analysis import Homonymy
 
 
 class ExportData(BaseModel):
@@ -115,8 +115,3 @@ class ExportIrregularity(BaseModel):
     regularity: Regularity
     range: tuple[int, int]
     from_form: str
-
-    def __lt__(self, other: ExportIrregularity) -> bool:
-        if not isinstance(other, ExportIrregularity):
-            return NotImplemented
-        return self.regularity < other.regularity
