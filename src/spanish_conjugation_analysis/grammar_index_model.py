@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from annotated_string import AnnotatedString
-from grammar_base_model import BaseElement, BaseLemma, BaseVerb, BaseVerbForm, VerbTag
-from phonetic_analysis import PhoneticForm
+from .annotated_string import AnnotatedString
+from .grammar_base_model import BaseElement, BaseLemma, BaseVerb, BaseVerbForm, VerbTag
+from .phonetic_analysis import PhoneticForm
 
 
 @dataclass(kw_only=True)

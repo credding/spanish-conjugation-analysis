@@ -1,10 +1,10 @@
 from collections.abc import Hashable
 from typing import NamedTuple, TypedDict, cast
 
-from affix_analysis import annotate_verb_form_affix
-from annotated_string import AnnotatedString
-from grammar_base_model import ElementTag, LemmaTag, PartOfSpeech, VerbFormTag, VerbTag
-from grammar_index_model import (
+from .affix_analysis import annotate_verb_form_affix
+from .annotated_string import AnnotatedString
+from .grammar_base_model import ElementTag, LemmaTag, PartOfSpeech, VerbFormTag, VerbTag
+from .grammar_index_model import (
     IndexElement,
     IndexLemma,
     IndexVerb,
@@ -14,7 +14,7 @@ from grammar_index_model import (
     MappedVerb,
     MappedVerbForm,
 )
-from phonetic_analysis import (
+from .phonetic_analysis import (
     PhoneticForm,
     annotate_phonemes,
     get_graphic_form,
@@ -22,9 +22,9 @@ from phonetic_analysis import (
     get_phonetic_form,
     get_phonetic_form_no_stress,
 )
-from stress_analysis import annotate_stress
-from syllable_analysis import annotate_syllables
-from tagged_index import TaggedIndex, TaggedItem
+from .stress_analysis import annotate_stress
+from .syllable_analysis import annotate_syllables
+from .tagged_index import TaggedIndex, TaggedItem
 
 type TaggedLemma = TaggedItem[LemmaTag, MappedLemma]
 type TaggedVerb = TaggedItem[VerbTag, MappedVerb]

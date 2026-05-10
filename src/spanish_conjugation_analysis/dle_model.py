@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from grammar_base_model import BaseLemma, BaseVerb, BaseVerbForm, VerbTag
+from .grammar_base_model import BaseLemma, BaseVerb, BaseVerbForm, VerbTag
 
 
 @dataclass

@@ -2,10 +2,10 @@ from collections.abc import Hashable
 
 from pydantic import HttpUrl
 
-from affix_analysis import VerbAffix, VerbSubject, VerbVariant
-from annotated_string import StringAnnotation
-from conjugation_analysis import Irregularity, Regularity
-from export_model import (
+from .affix_analysis import VerbAffix, VerbSubject, VerbVariant
+from .annotated_string import StringAnnotation
+from .conjugation_analysis import Irregularity, Regularity
+from .export_model import (
     ExportData,
     ExportElement,
     ExportElementId,
@@ -15,11 +15,11 @@ from export_model import (
     ExportVerbForm,
     ExportVerbFormId,
 )
-from grammar_index import TaggedElement, TaggedLemma
-from grammar_index_model import MappedElement, MappedLemma, MappedVerb, MappedVerbForm
-from homonymy_analysis import Homonymy
-from stress_analysis import Stress
-from syllable_analysis import Syllable
+from .grammar_index import TaggedElement, TaggedLemma
+from .grammar_index_model import MappedElement, MappedLemma, MappedVerb, MappedVerbForm
+from .homonymy_analysis import Homonymy
+from .stress_analysis import Stress
+from .syllable_analysis import Syllable
 
 
 def build_export_data(

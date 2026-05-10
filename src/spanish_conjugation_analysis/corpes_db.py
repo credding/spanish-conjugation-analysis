@@ -4,8 +4,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from logging_config import configure_logging
-from resources import obj_path, resources_path
+from .resources import resources_path
 
 _logger = logging.getLogger(__name__)
 
@@ -135,10 +134,3 @@ def _load_table_tsv(
                     e,
                     row,
                 )
-
-
-if __name__ == "__main__":
-    configure_logging()
-
-    db = CORPESDB(obj_path / "corpes.db")
-    db.initialize()

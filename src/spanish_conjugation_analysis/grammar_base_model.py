@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from ordered_enum import OrderedEnum
+from .ordered_enum import OrderedEnum
 
 
 class PartOfSpeech(OrderedEnum):

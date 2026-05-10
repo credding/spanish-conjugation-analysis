@@ -3,9 +3,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
-from grammar_base_model import ConjugationTag, Subject, Tense, Variant, VerbTag
-from phonetic_analysis import TRANSLATE_ADD_STRESS
-from resources import resources_path
+from .grammar_base_model import ConjugationTag, Subject, Tense, Variant, VerbTag
+from .phonetic_analysis import TRANSLATE_ADD_STRESS
+from .resources import resources_path
 
 
 class _ConjugationSpecKey(NamedTuple):

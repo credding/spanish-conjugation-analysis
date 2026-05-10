@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from grammar_base_model import BaseElement, BaseLemma
+from .grammar_base_model import BaseElement, BaseLemma
 
 
 @dataclass

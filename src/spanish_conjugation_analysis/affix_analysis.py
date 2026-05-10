@@ -1,9 +1,9 @@
 from collections.abc import Hashable
 from dataclasses import dataclass
 
-from annotated_string import AnnotatedString, StringAnnotation
-from conjugation_spec import get_conjugation_spec
-from grammar_base_model import ConjugationTag, Subject, VerbTag
+from .annotated_string import AnnotatedString, StringAnnotation
+from .conjugation_spec import get_conjugation_spec
+from .grammar_base_model import ConjugationTag, Subject, VerbTag
 
 
 @dataclass(repr=False)

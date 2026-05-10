@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from annotated_string import AnnotatedString, StringAnnotation
+from .annotated_string import AnnotatedString, StringAnnotation
 
 
 class SpellingType(Enum):

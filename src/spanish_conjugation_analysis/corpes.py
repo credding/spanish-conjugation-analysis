@@ -1,8 +1,8 @@
 from contextlib import closing
 
-from corpes_db import CORPESDB
-from corpes_model import FreqElement, FreqLemma
-from grammar_base_model import ElementTag, LemmaTag, PartOfSpeech
+from .corpes_db import CORPESDB
+from .corpes_model import FreqElement, FreqLemma
+from .grammar_base_model import ElementTag, LemmaTag, PartOfSpeech
 
 _PARTS_OF_SPEECH: dict[str, PartOfSpeech] = {
     "A": PartOfSpeech.ADJECTIVE,

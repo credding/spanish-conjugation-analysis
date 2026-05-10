@@ -1,19 +1,19 @@
 import logging
 import time
 
-from conjugation_analysis import ConjugationAnalyzer, Regularity
-from corpes import CORPES
-from corpes_db import CORPESDB
-from corpes_model import FreqLemma
-from dle import DLE
-from dle_web import DLEWeb
-from export_data import build_export_data
-from grammar_base_model import PartOfSpeech, VerbTag
-from grammar_index import GrammarIndex, TaggedVerb
-from grammar_index_model import IndexElement, IndexLemma, IndexVerb, IndexVerbForm
-from homonymy_analysis import Homonymy, HomonymyAnalyzer
-from logging_config import configure_logging
-from resources import artifacts_path, obj_path, resources_path
+from .conjugation_analysis import ConjugationAnalyzer, Regularity
+from .corpes import CORPES
+from .corpes_db import CORPESDB
+from .corpes_model import FreqLemma
+from .dle import DLE
+from .dle_web import DLEWeb
+from .export_data import build_export_data
+from .grammar_base_model import PartOfSpeech, VerbTag
+from .grammar_index import GrammarIndex, TaggedVerb
+from .grammar_index_model import IndexElement, IndexLemma, IndexVerb, IndexVerbForm
+from .homonymy_analysis import Homonymy, HomonymyAnalyzer
+from .logging_config import configure_logging
+from .resources import artifacts_path, obj_path, resources_path
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,21 @@ TOP_LEMMAS_SEARCH_LIMIT = 5_000
 TOP_ELEMENTS_FREQ_THRESHOLD = 10
 
 
-def main(ctx: Context) -> None:
+def main() -> None:
+    configure_logging()
+
+    corpes_db = CORPESDB(obj_path / "corpes.db")
+    corpes = CORPES(corpes_db)
+
+    dle_web = DLEWeb(cache_dir=obj_path / "dle_web")
+    dle = DLE(dle_web, cache_dir=obj_path / "cache")
+
+    ctx = Context(corpes, dle)
+
+    start_time = time.perf_counter()
+
+    corpes_db.initialize()
+
     ctx.index_top_corpes_lemmas()
     ctx.index_top_corpes_elements()
 
@@ -41,6 +55,8 @@ def main(ctx: Context) -> None:
     ctx.tag_homonyms()
 
     ctx.export_verb_data()
+
+    _logger.info("done in %.3fs", time.perf_counter() - start_time)
 
 
 class Context:
@@ -267,20 +283,3 @@ class Context:
         _logger.info(
             "exported %d element(s), %d verb form(s)", len(elements), len(verb_forms)
         )
-
-
-if __name__ == "__main__":
-    configure_logging()
-
-    corpes_db = CORPESDB(obj_path / "corpes.db")
-    corpes = CORPES(corpes_db)
-
-    dle_web = DLEWeb(cache_dir=obj_path / "dle_web")
-    dle = DLE(dle_web, cache_dir=obj_path / "cache")
-
-    start_time = time.perf_counter()
-
-    corpes_db.initialize()
-    main(Context(corpes, dle))
-
-    _logger.info("done in %.3fs", time.perf_counter() - start_time)

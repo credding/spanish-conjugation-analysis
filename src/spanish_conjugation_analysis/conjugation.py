@@ -2,10 +2,10 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import replace
 
-from annotated_string import AnnotatedString
-from conjugation_spec import ConjugationSpec, get_conjugation_spec
-from grammar_base_model import ConjugationTag, VerbTag
-from phonetic_analysis import (
+from .annotated_string import AnnotatedString
+from .conjugation_spec import ConjugationSpec, get_conjugation_spec
+from .grammar_base_model import ConjugationTag, VerbTag
+from .phonetic_analysis import (
     HARD_VOWELS,
     SOFT_VOWELS,
     STRONG_VOWELS,

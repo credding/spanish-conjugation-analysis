@@ -2,17 +2,17 @@ from collections import defaultdict
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, replace
 
-from annotated_string import AnnotatedString, StringAnnotation
-from conjugation import (
+from .annotated_string import AnnotatedString, StringAnnotation
+from .conjugation import (
     RegularMorphologyConjugator,
     RegularSpellingConjugator,
     VerbConjugator,
 )
-from grammar_base_model import ConjugationTag, VerbFormTag, VerbTag
-from grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
-from grammar_index_model import IndexVerbForm, MappedVerbForm
-from ordered_enum import OrderedEnum
-from phonetic_analysis import TRANSLATE_REMOVE_DIACRITICS, Phoneme, annotate_phonemes
+from .grammar_base_model import ConjugationTag, VerbFormTag, VerbTag
+from .grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
+from .grammar_index_model import IndexVerbForm, MappedVerbForm
+from .ordered_enum import OrderedEnum
+from .phonetic_analysis import TRANSLATE_REMOVE_DIACRITICS, Phoneme, annotate_phonemes
 
 
 class Regularity(OrderedEnum):

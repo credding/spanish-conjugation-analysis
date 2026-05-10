@@ -8,9 +8,9 @@ from urllib.parse import quote
 import joblib
 from bs4 import Tag
 
-from dle_model import DLELemma, DLEVerb, DLEVerbForm
-from dle_web import DLEPage, DLEWeb
-from grammar_base_model import (
+from .dle_model import DLELemma, DLEVerb, DLEVerbForm
+from .dle_web import DLEPage, DLEWeb
+from .grammar_base_model import (
     SUBJECT_GROUPS,
     ConjugationTag,
     LemmaTag,
@@ -21,7 +21,7 @@ from grammar_base_model import (
     VerbFormTag,
     VerbTag,
 )
-from phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+from .phonetic_analysis import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
 
 _logger = logging.getLogger(__name__)
 
