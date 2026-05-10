@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 
 from annotated_string import AnnotatedString, StringAnnotation
-from phonetic_analysis import Phoneme
 from syllable_analysis import Syllable
 
-_PENULTIMATE_STRESS_TERMINAL_SOUNDS = "aeiouns"
+_PENULTIMATE_STRESS_END_LETTERS = "aeiouns"
 
 
 @dataclass(repr=False)
@@ -31,13 +30,6 @@ def _get_stressed_syllable(
 def _get_normal_stressed_syllable(
     word: AnnotatedString, syllables: list[Syllable]
 ) -> Syllable:
-    end_syllable = syllables[-1]
-
-    if len(syllables) >= 2:  # noqa: PLR2004
-        end_syllable_sounds = word.get_annotations(
-            Phoneme, end_syllable.start, end_syllable.stop
-        )
-        if end_syllable_sounds[-1].phoneme in _PENULTIMATE_STRESS_TERMINAL_SOUNDS:
-            return syllables[-2]
-
-    return end_syllable
+    if len(syllables) >= 2 and word.string[-1] in _PENULTIMATE_STRESS_END_LETTERS:  # noqa: PLR2004
+        return syllables[-2]
+    return syllables[-1]
