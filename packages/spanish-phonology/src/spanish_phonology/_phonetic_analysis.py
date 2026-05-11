@@ -7,8 +7,8 @@ from .phonetics import (
     SOFT_VOWELS,
     STRESSED_VOWELS,
     STRONG_VOWELS,
-    TRANSLATE_ADD_STRESS,
-    TRANSLATE_REMOVE_STRESS,
+    TX_ADD_STRESS,
+    TX_REMOVE_STRESS,
     VOWELS,
 )
 
@@ -163,12 +163,12 @@ def _get_graphic_form(word: AnnotatedString) -> str:
 
 
 def _get_graphic_form_no_stress(word: AnnotatedString) -> str:
-    return word.string.translate(TRANSLATE_REMOVE_STRESS)
+    return word.string.translate(TX_REMOVE_STRESS)
 
 
 def _get_phonetic_form(word: AnnotatedString) -> str:
     return "".join(
-        x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
+        x.phoneme.translate(TX_ADD_STRESS) if x.has_stress else x.phoneme
         for x in word.get_annotations(Phoneme)
     )
 

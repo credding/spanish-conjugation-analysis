@@ -9,7 +9,7 @@ from spanish_phonology.phonetics import (
     HARD_VOWELS,
     SOFT_VOWELS,
     STRONG_VOWELS,
-    TRANSLATE_ADD_STRESS,
+    TX_ADD_STRESS,
     VOWELS,
 )
 
@@ -73,7 +73,7 @@ class RegularSpellingConjugator(VerbConjugator):
         if spec.pre_affix_stress:
             last_phoneme = stem.get_annotations(Phoneme)[-1]
             stem = _replace_phoneme(
-                stem, last_phoneme, last_phoneme.text.translate(TRANSLATE_ADD_STRESS)
+                stem, last_phoneme, last_phoneme.text.translate(TX_ADD_STRESS)
             )
 
         affix = AnnotatedString(affix)

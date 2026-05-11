@@ -5,7 +5,7 @@ from importlib.resources import files
 from typing import Any, NamedTuple, cast
 
 from spanish_grammar import Inflection, Subject, Tense, Variant
-from spanish_phonology.phonetics import TRANSLATE_ADD_STRESS
+from spanish_phonology.phonetics import TX_ADD_STRESS
 
 
 class ConjugationSpecKey(NamedTuple):
@@ -73,7 +73,7 @@ def _build_conjugation_spec(
         base_affix = ""
 
     if pre_affix_stress:
-        base_affix = base_affix[:-1] + base_affix[-1].translate(TRANSLATE_ADD_STRESS)
+        base_affix = base_affix[:-1] + base_affix[-1].translate(TX_ADD_STRESS)
 
     full_affix = base_affix + affix
 

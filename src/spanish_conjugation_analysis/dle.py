@@ -17,7 +17,7 @@ from spanish_grammar import (
     Verb,
     VerbForm,
 )
-from spanish_phonology.phonetics import TRANSLATE_ADD_STRESS, TRANSLATE_REMOVE_STRESS
+from spanish_phonology.phonetics import TX_ADD_STRESS, TX_REMOVE_STRESS
 
 from .dle_model import DLELemma, DLEVerb, DLEVerbForm
 from .dle_web import DLEPage, DLEWeb
@@ -156,6 +156,19 @@ _TENSES = {
     ("Imperativo", "Imperativo"): Tense.IMPERATIVE,
 }
 
+_COMPOUND_TENSES = {
+    ("Formas-no-personales", "Infinitivo compuesto"),
+    ("Formas-no-personales", "Gerundio compuesto"),
+    ("Indicativo", "Pretérito perfecto compuesto / Antepresente"),
+    ("Indicativo", "Pretérito pluscuamperfecto / Antecopretérito"),
+    ("Indicativo", "Pretérito anterior / Antepretérito"),
+    ("Indicativo", "Futuro compuesto / Antefuturo"),
+    ("Indicativo", "Condicional compuesto / Antepospretérito"),
+    ("Subjuntivo", "Pretérito perfecto compuesto / Antepresente"),
+    ("Subjuntivo", "Pretérito pluscuamperfecto / Antepretérito"),
+    ("Subjuntivo", "Futuro compuesto / Antefuturo"),
+}
+
 _REDUNDANT_SUBJECTS = {
     (tense, extra_subject)
     for (tense, subject), subjects in SUBJECT_GROUPS.items()
@@ -237,9 +250,10 @@ def _parse_conjugation_table(
 def _parse_conjugation_cell(
     verb: Verb, mood_id: str, col_header: str, row_header: str | None, cell_text: str
 ) -> Iterable[DLEVerbForm]:
-    tense = _TENSES.get((mood_id, col_header))
-    if tense is None:
+    if (mood_id, col_header) in _COMPOUND_TENSES:
         return
+
+    tense = _TENSES[(mood_id, col_header)]
 
     if row_header is None:
         subjects = [Subject.IMPERSONAL]
@@ -315,19 +329,28 @@ def _remove_reflexive_pronoun(
         return form
 
     pronoun = _REFLEXIVE_PRONOUNS[subject]
-    match tense, subject:
-        case Tense.INFINITIVE, _:
+
+    match tense:
+        case Tense.INFINITIVE | Tense.GERUND | Tense.IMPERATIVE:
+            if not form.endswith(pronoun):
+                msg = f"expected form to be reflexive {form}"
+                raise ValueError(msg)
             form = form.removesuffix(pronoun)
-        case Tense.PARTICIPLE, _:
+        case Tense.PARTICIPLE:
             pass
-        case Tense.IMPERATIVE, Subject.VOS:
-            form = form.removesuffix(pronoun)
-            form = form[:-1] + form[-1].translate(TRANSLATE_ADD_STRESS)
-        case Tense.IMPERATIVE, Subject.VOSOTROS:
-            form = form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS) + "d"
-        case Tense.GERUND | Tense.IMPERATIVE, _:
-            form = form.removesuffix(pronoun).translate(TRANSLATE_REMOVE_STRESS)
         case _:
-            form = form.removeprefix(f"{pronoun} ")
+            pronoun += " "
+            if not form.startswith(pronoun):
+                msg = f"expected form to be reflexive {form}"
+                raise ValueError(msg)
+            form = form.removeprefix(pronoun)
+
+    match tense, subject:
+        case Tense.IMPERATIVE, Subject.VOS:
+            form = form[:-1] + form[-1].translate(TX_ADD_STRESS)
+        case Tense.IMPERATIVE, Subject.VOSOTROS:
+            form = form.translate(TX_REMOVE_STRESS) + "d"
+        case Tense.GERUND | Tense.IMPERATIVE, _:
+            form = form.translate(TX_REMOVE_STRESS)
 
     return form

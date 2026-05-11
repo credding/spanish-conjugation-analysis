@@ -12,7 +12,7 @@ from spanish_conjugation import (
 )
 from spanish_grammar import Inflection, Tense, Verb, VerbForm
 from spanish_phonology import Phoneme, annotate_phonemes
-from spanish_phonology.phonetics import TRANSLATE_REMOVE_DIACRITICS
+from spanish_phonology.phonetics import TX_REMOVE_DIACRITICS
 
 from .grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
 from .grammar_index_model import IndexVerbForm, MappedVerbForm
@@ -367,6 +367,6 @@ def _eq_phoneme_text(a: Phoneme, b: Phoneme) -> bool:
 
 
 def _eq_phoneme_text_norm(a: Phoneme, b: Phoneme) -> bool:
-    a_text_norm = a.text.translate(TRANSLATE_REMOVE_DIACRITICS)
-    b_text_norm = b.text.translate(TRANSLATE_REMOVE_DIACRITICS)
+    a_text_norm = a.text.translate(TX_REMOVE_DIACRITICS)
+    b_text_norm = b.text.translate(TX_REMOVE_DIACRITICS)
     return a_text_norm == b_text_norm
