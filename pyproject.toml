@@ -54,9 +54,9 @@ branch = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = [
-    "D",
+extend-ignore = [
     "COM812",
+    "D",
     "TC001",
     "TC002",
     "TC003",

@@ -1,12 +1,10 @@
 from ._phonetic_analysis import (
     Phoneme,
     PhonemeKind,
-    PhoneticForm,
-    SpellingType,
-    annotate_next_phoneme,
+    annotate_phoneme,
     annotate_phonemes,
-    get_phonetic_form,
 )
+from ._phonetic_spelling import PhoneticForm, SpellingType, get_phonetic_form
 from ._stress_analysis import Stress, annotate_stress
 from ._syllable_analysis import Syllable, annotate_syllables
 
@@ -17,7 +15,7 @@ __all__ = [
     "SpellingType",
     "Stress",
     "Syllable",
-    "annotate_next_phoneme",
+    "annotate_phoneme",
     "annotate_phonemes",
     "annotate_stress",
     "annotate_syllables",

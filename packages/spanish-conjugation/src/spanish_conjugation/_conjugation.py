@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from annotated_string import AnnotatedString
 from spanish_grammar import Inflection, Tense, Verb
-from spanish_phonology import Phoneme, annotate_next_phoneme, annotate_phonemes
+from spanish_phonology import Phoneme, annotate_phoneme, annotate_phonemes
 from spanish_phonology.phonetics import (
     HARD_VOWELS,
     SOFT_VOWELS,
@@ -160,7 +160,7 @@ def _replace_phoneme(
     string: AnnotatedString, phoneme: Phoneme, new_text: str
 ) -> AnnotatedString:
     string = string[: phoneme.start] + new_text + string[phoneme.stop :]
-    annotate_next_phoneme(string, phoneme.start)
+    annotate_phoneme(string, phoneme.start)
     return string
 
 

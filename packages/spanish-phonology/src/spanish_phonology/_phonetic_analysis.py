@@ -3,14 +3,7 @@ from enum import Enum, auto
 
 from annotated_string import AnnotatedString, StringAnnotation
 
-from .phonetics import (
-    SOFT_VOWELS,
-    STRESSED_VOWELS,
-    STRONG_VOWELS,
-    TX_ADD_STRESS,
-    TX_REMOVE_STRESS,
-    VOWELS,
-)
+from .phonetics import SOFT_VOWELS, STRESSED_VOWELS, STRONG_VOWELS, VOWELS
 
 
 class PhonemeKind(Enum):
@@ -57,28 +50,21 @@ _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
     phonemes: list[Phoneme] = []
-    phoneme = annotate_first_phoneme(word)
+    phoneme = annotate_phoneme(word, 0)
     while phoneme:
         phonemes.append(phoneme)
-        phoneme = annotate_next_phoneme(word, phoneme.stop)
+        phoneme = annotate_phoneme(word, phoneme.stop)
     return phonemes
 
 
-def annotate_first_phoneme(word: AnnotatedString) -> Phoneme | None:
-    if word.string == "":
-        return None
-
-    first_phoneme = _START_SUBSTITUTE_PHONEMES.get(word.string[0])
-    if first_phoneme is not None:
-        return word.annotate(Phoneme, 0, 1, PhonemeKind.CONSONANT, first_phoneme)
-
-    return annotate_next_phoneme(word, 0)
+def annotate_phoneme(word: AnnotatedString, pos: int) -> Phoneme | None:
+    return _annotate_compound_phoneme(word, pos) or _annotate_simple_phoneme(word, pos)
 
 
-def annotate_next_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
+def _annotate_compound_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
     stop = start + 2
     if stop > len(word.string):
-        return _annotate_simple_phoneme(word, start)
+        return None
 
     grapheme = word.string[start:stop]
 
@@ -87,12 +73,13 @@ def annotate_next_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
 
     if grapheme in _COMPOUND_CONSONANT_PHONEMES:
         phoneme = _COMPOUND_CONSONANT_PHONEMES[grapheme]
-    elif grapheme in _COMPOUND_HARD_CONSONANT_PHONEMES and _is_soft_vowel(
-        word.string, start + 2
+    elif (
+        _is_soft_vowel(word.string, start + 2)
+        and grapheme in _COMPOUND_HARD_CONSONANT_PHONEMES
     ):
         phoneme = _COMPOUND_HARD_CONSONANT_PHONEMES[grapheme]
     else:
-        return _annotate_simple_phoneme(word, start)
+        return None
 
     return word.annotate(Phoneme, start, stop, PhonemeKind.CONSONANT, phoneme)
 
@@ -107,8 +94,10 @@ def _annotate_simple_phoneme(word: AnnotatedString, start: int) -> Phoneme | Non
     if grapheme in VOWELS:
         return _annotate_vowel_phoneme(word, start, stop, grapheme)
 
-    if grapheme in _SOFT_CONSONANT_PHONEMES and _is_soft_vowel(word.string, start + 1):
+    if _is_soft_vowel(word.string, start + 1) and grapheme in _SOFT_CONSONANT_PHONEMES:
         phoneme = _SOFT_CONSONANT_PHONEMES[grapheme]
+    elif start == 0 and grapheme in _START_SUBSTITUTE_PHONEMES:
+        phoneme = _START_SUBSTITUTE_PHONEMES[grapheme]
     else:
         phoneme = _SUBSTITUTE_PHONEMES.get(grapheme, grapheme)
 
@@ -129,49 +118,6 @@ def _annotate_vowel_phoneme(
 
 
 def _is_soft_vowel(word: str, pos: int) -> bool:
+    if pos + 1 < len(word) and word[pos] == "h" and word[pos + 1] in SOFT_VOWELS:
+        return True
     return pos < len(word) and word[pos] in SOFT_VOWELS
-
-
-class SpellingType(Enum):
-    GRAPHIC = auto()
-    GRAPHIC_NO_STRESS = auto()
-    PHONETIC = auto()
-    PHONETIC_NO_STRESS = auto()
-
-
-@dataclass(frozen=True, slots=True)
-class PhoneticForm:
-    spelling_type: SpellingType
-    form: str
-
-
-def get_phonetic_form(
-    word: AnnotatedString, spelling_type: SpellingType
-) -> PhoneticForm:
-    form = {
-        SpellingType.GRAPHIC: _get_graphic_form,
-        SpellingType.GRAPHIC_NO_STRESS: _get_graphic_form_no_stress,
-        SpellingType.PHONETIC: _get_phonetic_form,
-        SpellingType.PHONETIC_NO_STRESS: _get_phonetic_form_no_stress,
-    }[spelling_type](word)
-
-    return PhoneticForm(spelling_type, form)
-
-
-def _get_graphic_form(word: AnnotatedString) -> str:
-    return word.string
-
-
-def _get_graphic_form_no_stress(word: AnnotatedString) -> str:
-    return word.string.translate(TX_REMOVE_STRESS)
-
-
-def _get_phonetic_form(word: AnnotatedString) -> str:
-    return "".join(
-        x.phoneme.translate(TX_ADD_STRESS) if x.has_stress else x.phoneme
-        for x in word.get_annotations(Phoneme)
-    )
-
-
-def _get_phonetic_form_no_stress(word: AnnotatedString) -> str:
-    return "".join(x.phoneme for x in word.get_annotations(Phoneme))
