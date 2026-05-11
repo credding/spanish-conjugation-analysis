@@ -8,9 +8,9 @@ from spanish_grammar import (
     Subject,
     Tense,
     Variant,
+    Verb,
     VerbForm,
 )
-from spanish_grammar.grammar_model import Verb
 
 
 @dataclass

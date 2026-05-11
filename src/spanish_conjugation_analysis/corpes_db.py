@@ -32,10 +32,7 @@ class CORPESDB:
 
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with (
-            sqlite3.connect(self._db_path) as conn,
-            closing(conn.cursor()) as cur,
-        ):
+        with sqlite3.connect(self._db_path) as conn, closing(conn.cursor()) as cur:
             cur.executescript(_corpes_schema_path.read_text())
 
             _load_table_tsv(

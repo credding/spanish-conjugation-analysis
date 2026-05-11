@@ -3,7 +3,7 @@ from enum import Enum, auto
 
 from annotated_string import AnnotatedString, StringAnnotation
 
-from .phonetic_analysis import Phoneme, PhonemeKind
+from ._phonetic_analysis import Phoneme, PhonemeKind
 from .phonetics import STRESSED_VOWELS
 
 
@@ -83,7 +83,7 @@ class _SyllableAnalysisState:
 
     def evaluate_end(self) -> list[Syllable]:
         if len(self._syllable_phonemes) > 0:
-            self._annotate_syllable()
+            self._add_syllable()
         return self._syllables
 
     def _evaluate_at_start_consonant(self, phoneme: Phoneme) -> None:
@@ -98,7 +98,7 @@ class _SyllableAnalysisState:
     def _evaluate_at_end_consonant(self, phoneme: Phoneme) -> None:
         match phoneme.phoneme_kind:
             case PhonemeKind.CONSONANT:
-                self._annotate_syllable()
+                self._add_syllable()
                 self._syllable_part = _SyllablePart.START_CONSONANT
             case PhonemeKind.STRONG_VOWEL:
                 self._add_syllable_without_previous_phoneme()
@@ -126,7 +126,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
             case PhonemeKind.STRONG_VOWEL:
-                self._annotate_syllable()
+                self._add_syllable()
                 self._syllable_part = _SyllablePart.STRONG_VOWEL
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.STRONG_WEAK_DIPHTHONG
@@ -145,7 +145,7 @@ class _SyllableAnalysisState:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
             case PhonemeKind.STRONG_VOWEL:
-                self._annotate_syllable()
+                self._add_syllable()
                 self._syllable_part = _SyllablePart.STRONG_VOWEL
             case PhonemeKind.WEAK_VOWEL:
                 self._syllable_part = _SyllablePart.TRIPHTHONG
@@ -166,10 +166,10 @@ class _SyllableAnalysisState:
             case PhonemeKind.CONSONANT:
                 self._evaluate_end_consonant(phoneme)
             case PhonemeKind.STRONG_VOWEL:
-                self._annotate_syllable()
+                self._add_syllable()
                 self._syllable_part = _SyllablePart.STRONG_VOWEL
             case PhonemeKind.WEAK_VOWEL:
-                self._annotate_syllable()
+                self._add_syllable()
                 self._syllable_part = _SyllablePart.WEAK_VOWEL
 
     def _evaluate_end_consonant(self, phoneme: Phoneme) -> None:
@@ -185,10 +185,10 @@ class _SyllableAnalysisState:
 
     def _add_syllable_without_previous_phoneme(self) -> None:
         previous_phoneme = self._syllable_phonemes.pop()
-        self._annotate_syllable()
+        self._add_syllable()
         self._syllable_phonemes.append(previous_phoneme)
 
-    def _annotate_syllable(self) -> None:
+    def _add_syllable(self) -> None:
         first_phoneme = self._syllable_phonemes[0]
         last_phoneme = self._syllable_phonemes[-1]
         syllable = self._word.annotate(Syllable, first_phoneme.start, last_phoneme.stop)

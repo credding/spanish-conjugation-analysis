@@ -1,4 +1,4 @@
-from .grammar_model import (
+from ._grammar_model import (
     Element,
     Inflection,
     Lemma,

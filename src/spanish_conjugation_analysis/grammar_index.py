@@ -8,13 +8,11 @@ from spanish_conjugation import annotate_verb_form_affix
 from spanish_grammar import Element, Lemma, PartOfSpeech, Verb, VerbForm
 from spanish_phonology import (
     PhoneticForm,
+    SpellingType,
     annotate_phonemes,
     annotate_stress,
     annotate_syllables,
-    get_graphic_form,
-    get_graphic_form_no_stress,
     get_phonetic_form,
-    get_phonetic_form_no_stress,
 )
 from tagged_index import TaggedIndex, TaggedItem
 
@@ -171,9 +169,13 @@ def _analyze_phonetics(form: str) -> _PhoneticAnalysisResult:
     return _PhoneticAnalysisResult(
         annotated_form=annotated_form,
         phonetic_forms=_PhoneticForms(
-            graphic_form=get_graphic_form(annotated_form),
-            graphic_form_no_stress=get_graphic_form_no_stress(annotated_form),
-            phonetic_form=get_phonetic_form(annotated_form),
-            phonetic_form_no_stress=get_phonetic_form_no_stress(annotated_form),
+            graphic_form=get_phonetic_form(annotated_form, SpellingType.GRAPHIC),
+            graphic_form_no_stress=get_phonetic_form(
+                annotated_form, SpellingType.GRAPHIC_NO_STRESS
+            ),
+            phonetic_form=get_phonetic_form(annotated_form, SpellingType.PHONETIC),
+            phonetic_form_no_stress=get_phonetic_form(
+                annotated_form, SpellingType.PHONETIC_NO_STRESS
+            ),
         ),
     )

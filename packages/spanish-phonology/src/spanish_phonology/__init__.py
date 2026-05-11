@@ -1,17 +1,14 @@
-from .phonetic_analysis import (
+from ._phonetic_analysis import (
     Phoneme,
     PhonemeKind,
     PhoneticForm,
     SpellingType,
     annotate_next_phoneme,
     annotate_phonemes,
-    get_graphic_form,
-    get_graphic_form_no_stress,
     get_phonetic_form,
-    get_phonetic_form_no_stress,
 )
-from .stress_analysis import Stress, annotate_stress
-from .syllable_analysis import Syllable, annotate_syllables
+from ._stress_analysis import Stress, annotate_stress
+from ._syllable_analysis import Syllable, annotate_syllables
 
 __all__ = [
     "Phoneme",

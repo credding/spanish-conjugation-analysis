@@ -13,7 +13,7 @@ from spanish_phonology.phonetics import (
     VOWELS,
 )
 
-from .conjugation_spec import ConjugationSpec, get_conjugation_spec
+from ._conjugation_spec import CONJUGATION_SPEC, ConjugationSpec, ConjugationSpecKey
 
 _logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class VerbConjugator(ABC):
         raise NotImplementedError
 
 
-class InfinitiveConjugator(VerbConjugator):
+class _InfinitiveConjugator(VerbConjugator):
     def __init__(self, constructed_form_conjugator: VerbConjugator) -> None:
         self._constructed_form_conjugator = constructed_form_conjugator
 
@@ -39,10 +39,10 @@ class InfinitiveConjugator(VerbConjugator):
 
 class RegularSpellingConjugator(VerbConjugator):
     def __init__(self, base_form_conjugator: VerbConjugator | None = None) -> None:
-        self._base_form_conjugator = base_form_conjugator or InfinitiveConjugator(self)
+        self._base_form_conjugator = base_form_conjugator or _InfinitiveConjugator(self)
 
     def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
-        spec = get_conjugation_spec(verb, inflection)
+        spec = CONJUGATION_SPEC.get(ConjugationSpecKey(verb.ending, inflection))
         if spec is None:
             return []
 

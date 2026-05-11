@@ -10,7 +10,7 @@ _VT = TypeVar("_VT")
 
 
 @dataclass(frozen=True, slots=True)
-class Relationship(Generic[_KT]):
+class _Relationship(Generic[_KT]):
     tag: Hashable
     key: _KT
 
@@ -28,10 +28,10 @@ class TaggedItem(Generic[_KT, _VT]):
             self._index._lookup[tag].add(self)  # noqa: SLF001
 
     def relate_to(self, other: TaggedItem[_KT, _VT], tag: Hashable) -> None:
-        other.tag(Relationship(tag, self.key))
+        other.tag(_Relationship(tag, self.key))
 
     def get_related(self, tag: Hashable) -> set[TaggedItem[_KT, _VT]]:
-        return self._index.lookup(Relationship(tag, self.key))
+        return self._index.lookup(_Relationship(tag, self.key))
 
 
 class TaggedIndex(dict[_KT, TaggedItem[_KT, _VT]], Generic[_KT, _VT]):

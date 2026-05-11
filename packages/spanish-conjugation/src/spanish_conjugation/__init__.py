@@ -1,10 +1,10 @@
-from .affix_analysis import (
+from ._affix_analysis import (
     VerbAffix,
     VerbSubject,
     VerbVariant,
     annotate_verb_form_affix,
 )
-from .conjugation import (
+from ._conjugation import (
     RegularMorphologyConjugator,
     RegularSpellingConjugator,
     VerbConjugator,

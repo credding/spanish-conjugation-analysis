@@ -4,35 +4,35 @@ from dataclasses import dataclass
 from annotated_string import AnnotatedString, StringAnnotation
 from spanish_grammar import Inflection, Subject, Verb
 
-from .conjugation_spec import get_conjugation_spec
+from ._conjugation_spec import CONJUGATION_SPEC, ConjugationSpecKey
 
 
 @dataclass(repr=False)
-class AffixAnnotation(StringAnnotation):
+class _AffixAnnotation(StringAnnotation):
     @property
     def unique_key(self) -> Hashable:
         return type(self)
 
 
 @dataclass(repr=False)
-class VerbAffix(AffixAnnotation):
+class VerbAffix(_AffixAnnotation):
     pass
 
 
 @dataclass(repr=False)
-class VerbSubject(AffixAnnotation):
+class VerbSubject(_AffixAnnotation):
     pass
 
 
 @dataclass(repr=False)
-class VerbVariant(AffixAnnotation):
+class VerbVariant(_AffixAnnotation):
     pass
 
 
 def annotate_verb_form_affix(
     form: AnnotatedString, verb: Verb, inflection: Inflection
 ) -> None:
-    spec = get_conjugation_spec(verb, inflection)
+    spec = CONJUGATION_SPEC.get(ConjugationSpecKey(verb.ending, inflection))
     if spec is None:
         return
 

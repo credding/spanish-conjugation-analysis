@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from annotated_string import AnnotatedString, StringAnnotation
 
-from .syllable_analysis import Syllable
+from ._syllable_analysis import Syllable
 
 
 @dataclass(repr=False)

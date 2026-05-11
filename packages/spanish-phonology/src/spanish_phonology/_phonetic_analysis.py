@@ -145,29 +145,33 @@ class PhoneticForm:
     form: str
 
 
-def get_graphic_form(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(spelling_type=SpellingType.GRAPHIC, form=word.string)
+def get_phonetic_form(
+    word: AnnotatedString, spelling_type: SpellingType
+) -> PhoneticForm:
+    form = {
+        SpellingType.GRAPHIC: _get_graphic_form,
+        SpellingType.GRAPHIC_NO_STRESS: _get_graphic_form_no_stress,
+        SpellingType.PHONETIC: _get_phonetic_form,
+        SpellingType.PHONETIC_NO_STRESS: _get_phonetic_form_no_stress,
+    }[spelling_type](word)
+
+    return PhoneticForm(spelling_type, form)
 
 
-def get_graphic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.GRAPHIC_NO_STRESS,
-        form=word.string.translate(TRANSLATE_REMOVE_STRESS),
+def _get_graphic_form(word: AnnotatedString) -> str:
+    return word.string
+
+
+def _get_graphic_form_no_stress(word: AnnotatedString) -> str:
+    return word.string.translate(TRANSLATE_REMOVE_STRESS)
+
+
+def _get_phonetic_form(word: AnnotatedString) -> str:
+    return "".join(
+        x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
+        for x in word.get_annotations(Phoneme)
     )
 
 
-def get_phonetic_form(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.PHONETIC,
-        form="".join(
-            x.phoneme.translate(TRANSLATE_ADD_STRESS) if x.has_stress else x.phoneme
-            for x in word.get_annotations(Phoneme)
-        ),
-    )
-
-
-def get_phonetic_form_no_stress(word: AnnotatedString) -> PhoneticForm:
-    return PhoneticForm(
-        spelling_type=SpellingType.PHONETIC_NO_STRESS,
-        form="".join(x.phoneme for x in word.get_annotations(Phoneme)),
-    )
+def _get_phonetic_form_no_stress(word: AnnotatedString) -> str:
+    return "".join(x.phoneme for x in word.get_annotations(Phoneme))

@@ -58,7 +58,7 @@ class Irregularity(StringAnnotation):
         )
 
 
-class CorrectBaseFormConjugator(VerbConjugator):
+class _CorrectBaseFormConjugator(VerbConjugator):
     def __init__(self, index: GrammarIndex) -> None:
         self._index = index
 
@@ -85,7 +85,7 @@ class ConjugationAnalyzer:
         self._reg_spell_conjug = RegularSpellingConjugator()
         self._reg_morph_conjug = RegularMorphologyConjugator()
         self._reg_constr_conjug = RegularMorphologyConjugator(
-            CorrectBaseFormConjugator(self._index)
+            _CorrectBaseFormConjugator(self._index)
         )
 
     def index_regular_verb_forms(self, form: TaggedVerbForm) -> int:
