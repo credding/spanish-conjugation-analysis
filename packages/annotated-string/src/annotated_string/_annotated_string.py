@@ -3,10 +3,12 @@ from __future__ import annotations
 from abc import ABC
 from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field, replace
+from functools import total_ordering
 from typing import Concatenate, ParamSpec, TypeVar
 
 
 @dataclass(repr=False)
+@total_ordering
 class StringAnnotation(ABC):
     string: str
     start: int
@@ -18,6 +20,9 @@ class StringAnnotation(ABC):
             raise ValueError(msg)
         if self.stop > len(self.string):
             msg = f"stop must be <= string length, got {self.stop}"
+            raise ValueError(msg)
+        if self.start > self.stop:
+            msg = f"start must be <= stop, got {self.start} <= {self.stop}"
             raise ValueError(msg)
 
     @property
@@ -46,25 +51,26 @@ _T = TypeVar("_T", bound=StringAnnotation)
 _P = ParamSpec("_P")
 
 
-@dataclass(eq=False)
+@dataclass
 class AnnotatedString:
     string: str
     _annotations: dict[Hashable, StringAnnotation] = field(default_factory=dict)
 
     @property
     def annotations(self) -> list[StringAnnotation]:
-        return [*self._annotations.values()]
+        return sorted(self._annotations.values())
 
     def annotate(
         self,
         annotation_type: Callable[Concatenate[str, int, int, _P], _T],
         /,
-        start: int | None = None,
+        start: int = 0,
         stop: int | None = None,
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> _T:
-        start, stop, _ = slice(start, stop).indices(len(self.string))
+        if stop is None:
+            stop = len(self.string)
         annotation = annotation_type(self.string, start, stop, *args, **kwargs)
         self.add_annotation(annotation)
         return annotation
@@ -111,6 +117,7 @@ class AnnotatedString:
             if (
                 start <= x.start < stop
                 or start < x.stop <= stop
+                or x.start < start < stop <= x.stop
                 or start <= x.start == x.stop <= stop
             ):
                 result.add_annotation(

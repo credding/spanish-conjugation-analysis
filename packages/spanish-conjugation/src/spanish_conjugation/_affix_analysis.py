@@ -45,10 +45,11 @@ def annotate_verb_form_affix(
 
     if inflection.subject is not Subject.IMPERSONAL:
         if spec.subject_len is not None:
-            subject_start = -spec.subject_len
+            subject_start = len(form.string) - spec.subject_len
         else:
             subject_start = affix_match.start()
         form.annotate(VerbSubject, subject_start)
 
     if inflection.variant is not None:
-        form.annotate(VerbVariant, -len(spec.affix))
+        variant_start = len(form.string) - len(spec.affix)
+        form.annotate(VerbVariant, variant_start, variant_start + 2)
