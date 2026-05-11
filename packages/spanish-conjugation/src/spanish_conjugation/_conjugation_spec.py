@@ -64,9 +64,13 @@ def _build_conjugation_spec(
     else:
         subject_len = None
 
-    base_affix: str = rows[ConjugationSpecKey(key.ending, base_inflection)]["affix"]
-    assert base_affix.endswith(truncate_str)  # noqa: S101
-    base_affix = base_affix[: -len(truncate_str) or None]
+    if base_inflection.tense is not Tense.INFINITIVE:
+        base_spec = rows[ConjugationSpecKey(key.ending, base_inflection)]
+        base_affix: str = base_spec["affix"]
+        assert base_affix.endswith(truncate_str)  # noqa: S101
+        base_affix = base_affix.removesuffix(truncate_str)
+    else:
+        base_affix = ""
 
     if pre_affix_stress:
         base_affix = base_affix[:-1] + base_affix[-1].translate(TRANSLATE_ADD_STRESS)
