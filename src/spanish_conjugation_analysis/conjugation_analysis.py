@@ -10,7 +10,7 @@ from spanish_conjugation import (
     RegularSpellingConjugator,
     VerbConjugator,
 )
-from spanish_grammar import Inflection, Verb, VerbForm
+from spanish_grammar import Inflection, Tense, Verb, VerbForm
 from spanish_phonology import Phoneme, annotate_phonemes
 from spanish_phonology.phonetics import TRANSLATE_REMOVE_DIACRITICS
 
@@ -58,26 +58,24 @@ class Irregularity(StringAnnotation):
         )
 
 
-class _RegularConstructionConjugator(RegularMorphologyConjugator):
+class CorrectBaseFormConjugator(VerbConjugator):
     def __init__(self, index: GrammarIndex) -> None:
         self._index = index
 
-    def _get_from_forms(
-        self, verb_tag: Verb, from_conjug: Inflection | None
-    ) -> list[AnnotatedString]:
-        if from_conjug is None:
+    def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
+        if inflection.tense is Tense.INFINITIVE:
             return []
 
         correct_forms = self._index.lookup_verb_forms(
-            Regularity.CORRECT_FORM, verb_tag, from_conjug
+            Regularity.CORRECT_FORM, verb, inflection
         )
-        from_forms = []
+        base_forms: list[AnnotatedString] = []
         for form in sorted(correct_forms, key=lambda x: x.value.preference):
-            from_form = AnnotatedString(form.value.form)
-            annotate_phonemes(from_form)
-            from_forms.append(from_form)
+            base_form = AnnotatedString(form.value.form)
+            annotate_phonemes(base_form)
+            base_forms.append(base_form)
 
-        return from_forms
+        return base_forms
 
 
 class ConjugationAnalyzer:
@@ -86,7 +84,9 @@ class ConjugationAnalyzer:
 
         self._reg_spell_conjug = RegularSpellingConjugator()
         self._reg_morph_conjug = RegularMorphologyConjugator()
-        self._reg_constr_conjug = _RegularConstructionConjugator(self._index)
+        self._reg_constr_conjug = RegularMorphologyConjugator(
+            CorrectBaseFormConjugator(self._index)
+        )
 
     def index_regular_verb_forms(self, form: TaggedVerbForm) -> int:
         reg_spell_count = self._index_reg_forms(

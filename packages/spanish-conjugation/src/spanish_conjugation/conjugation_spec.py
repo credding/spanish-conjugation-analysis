@@ -15,7 +15,7 @@ class _ConjugationSpecKey(NamedTuple):
 
 @dataclass(frozen=True)
 class ConjugationSpec:
-    from_conjug: Inflection | None
+    base_form: Inflection
     truncate_str: str
     pre_affix_stress: bool
     affix: str
@@ -61,11 +61,7 @@ def _build_conjugation_spec(
     key: _ConjugationSpecKey,
     row: dict[str, Any],
 ) -> ConjugationSpec:
-    from_conjug = (
-        Inflection(Tense(row["from_tense"]), Subject(row["from_subject"]), None)
-        if row["from_tense"] or row["from_subject"]
-        else None
-    )
+    base_form = Inflection(Tense(row["base_tense"]), Subject(row["base_subject"]), None)
     truncate_str: str = row["truncate_str"].replace("_", key.ending[0])
     pre_affix_stress: bool = row["pre_affix_stress"] == "1"
     affix: str = row["affix"]
@@ -75,23 +71,23 @@ def _build_conjugation_spec(
     else:
         subject_len = None
 
-    if from_conjug is not None:
-        from_ = _ConjugationSpecKey(key.ending, from_conjug)
-        from_affix: str = rows[from_]["affix"]
-        assert from_affix.endswith(truncate_str)  # noqa: S101
-        from_affix = from_affix[: -len(truncate_str) or None]
+    if base_form is not None:
+        base_spec = _ConjugationSpecKey(key.ending, base_form)
+        base_affix: str = rows[base_spec]["affix"]
+        assert base_affix.endswith(truncate_str)  # noqa: S101
+        base_affix = base_affix[: -len(truncate_str) or None]
     else:
-        from_affix = ""
+        base_affix = ""
 
     if pre_affix_stress:
-        from_affix = from_affix[:-1] + from_affix[-1].translate(TRANSLATE_ADD_STRESS)
+        base_affix = base_affix[:-1] + base_affix[-1].translate(TRANSLATE_ADD_STRESS)
 
-    full_affix = from_affix + affix
+    full_affix = base_affix + affix
 
     full_affix_pattern = _build_affix_pattern(full_affix)
 
     return ConjugationSpec(
-        from_conjug=from_conjug,
+        base_form=base_form,
         truncate_str=truncate_str,
         pre_affix_stress=pre_affix_stress,
         affix=affix,

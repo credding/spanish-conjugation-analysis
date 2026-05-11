@@ -30,9 +30,9 @@ class VerbVariant(AffixAnnotation):
 
 
 def annotate_verb_form_affix(
-    form: AnnotatedString, verb: Verb, conjug_tag: Inflection
+    form: AnnotatedString, verb: Verb, inflection: Inflection
 ) -> None:
-    spec = get_conjugation_spec(verb, conjug_tag)
+    spec = get_conjugation_spec(verb, inflection)
     if spec is None:
         return
 
@@ -43,12 +43,12 @@ def annotate_verb_form_affix(
 
     form.annotate(VerbAffix, affix_match.start())
 
-    if conjug_tag.subject is not Subject.IMPERSONAL:
+    if inflection.subject is not Subject.IMPERSONAL:
         if spec.subject_len is not None:
             subject_start = -spec.subject_len
         else:
             subject_start = affix_match.start()
         form.annotate(VerbSubject, subject_start)
 
-    if conjug_tag.variant is not None:
+    if inflection.variant is not None:
         form.annotate(VerbVariant, -len(spec.affix))

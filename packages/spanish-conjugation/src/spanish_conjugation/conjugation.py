@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import replace
 
 from annotated_string import AnnotatedString
-from spanish_grammar import Inflection, Verb
+from spanish_grammar import Inflection, Tense, Verb
 from spanish_phonology import Phoneme, annotate_next_phoneme, annotate_phonemes
 from spanish_phonology.phonetics import (
     HARD_VOWELS,
@@ -24,7 +24,23 @@ class VerbConjugator(ABC):
         raise NotImplementedError
 
 
+class InfinitiveConjugator(VerbConjugator):
+    def __init__(self, constructed_form_conjugator: VerbConjugator) -> None:
+        self._constructed_form_conjugator = constructed_form_conjugator
+
+    def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
+        if inflection.tense is Tense.INFINITIVE:
+            infinitive_form = AnnotatedString(verb.infinitive)
+            annotate_phonemes(infinitive_form)
+            return [infinitive_form]
+
+        return self._constructed_form_conjugator.conjugate(verb, inflection)
+
+
 class RegularSpellingConjugator(VerbConjugator):
+    def __init__(self, base_form_conjugator: VerbConjugator | None = None) -> None:
+        self._base_form_conjugator = base_form_conjugator or InfinitiveConjugator(self)
+
     def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
         spec = get_conjugation_spec(verb, inflection)
         if spec is None:
@@ -32,8 +48,8 @@ class RegularSpellingConjugator(VerbConjugator):
 
         result: list[AnnotatedString] = []
 
-        for from_form in self._get_from_forms(verb, spec.from_conjug):
-            form = self._conjugate_form(spec, from_form)
+        for base_form in self._base_form_conjugator.conjugate(verb, spec.base_form):
+            form = self._conjugate_form(spec, base_form)
             if form is not None:
                 result.append(form)
 
@@ -70,15 +86,6 @@ class RegularSpellingConjugator(VerbConjugator):
 
     def _adapt_stem(self, stem: AnnotatedString, affix: str) -> AnnotatedString:  # noqa: ARG002
         return stem
-
-    def _get_from_forms(
-        self, verb_tag: Verb, from_conjug: Inflection | None
-    ) -> list[AnnotatedString]:
-        if from_conjug is None:
-            infinitive_form = AnnotatedString(verb_tag.infinitive)
-            annotate_phonemes(infinitive_form)
-            return [infinitive_form]
-        return self.conjugate(verb_tag, from_conjug)
 
 
 class RegularMorphologyConjugator(RegularSpellingConjugator):
