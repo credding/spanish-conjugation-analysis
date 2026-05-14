@@ -31,7 +31,7 @@ def first_phoneme(text: str) -> Phoneme:
     word = AnnotatedString(text)
     phoneme = annotate_phoneme(word, 0)
     assert phoneme is not None
-    assert word.annotations == [phoneme]
+    assert [*word.annotations] == [phoneme]
     return phoneme
 
 
@@ -39,7 +39,7 @@ def consecutive_phoneme(text: str) -> Phoneme:
     word = AnnotatedString("_" + text)
     phoneme = annotate_phoneme(word, 1)
     assert phoneme is not None
-    assert word.annotations == [phoneme]
+    assert [*word.annotations] == [phoneme]
     return phoneme
 
 
@@ -63,14 +63,14 @@ class TestAnnotatePhoneme:
     def test_empty(self) -> None:
         word = AnnotatedString("")
         phonemes = annotate_phonemes(word)
-        assert word.annotations == phonemes
+        assert [*word.annotations] == phonemes
         assert phonemes == []
 
     @pytest.mark.parametrize(
         ("text", "expected_phoneme"),
         [
             ("b", "b"),
-            # c forms a compound consonant
+            # c can form a compound consonant
             # c sound has hard/soft variation
             ("d", "d"),
             ("f", "f"),
@@ -78,13 +78,13 @@ class TestAnnotatePhoneme:
             # h before a vowel is silent
             ("j", "x"),  # j sounds like 'x'
             ("k", "k"),
-            # l forms a compound consonant
+            # l can form a compound consonant
             ("m", "m"),
             ("n", "n"),
             ("ñ", "ñ"),
             ("p", "p"),
             ("q", "k"),  # q sounds like 'k'
-            # r forms a compound consonant
+            # r can form a compound consonant
             # r sound is different at start of word
             ("s", "s"),
             ("t", "t"),

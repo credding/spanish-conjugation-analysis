@@ -1,55 +1,48 @@
-from collections.abc import Hashable
 from dataclasses import dataclass
 
-from annotated_string import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, SingletonStringAnnotation
 from spanish_grammar import Inflection, Subject, Verb
 
 from ._conjugation_spec import CONJUGATION_SPEC, ConjugationSpecKey
 
 
 @dataclass(repr=False)
-class _AffixAnnotation(StringAnnotation):
-    @property
-    def unique_key(self) -> Hashable:
-        return type(self)
-
-
-@dataclass(repr=False)
-class VerbAffix(_AffixAnnotation):
+class VerbAffix(SingletonStringAnnotation):
     pass
 
 
 @dataclass(repr=False)
-class VerbSubject(_AffixAnnotation):
+class VerbSubject(SingletonStringAnnotation):
     pass
 
 
 @dataclass(repr=False)
-class VerbVariant(_AffixAnnotation):
+class VerbVariant(SingletonStringAnnotation):
     pass
 
 
 def annotate_verb_form_affix(
     form: AnnotatedString, verb: Verb, inflection: Inflection
 ) -> None:
-    spec = CONJUGATION_SPEC.get(ConjugationSpecKey(verb.ending, inflection))
-    if spec is None:
-        return
+    spec = CONJUGATION_SPEC[ConjugationSpecKey(verb.ending, inflection)]
 
     affix_match = spec.full_affix_pattern.search(form.string)
     if affix_match is None:
         msg = f"expected affix to match {spec.full_affix_pattern.pattern}: {form}"
         raise ValueError(msg)
 
-    form.annotate(VerbAffix, affix_match.start())
+    affix = VerbAffix(form.string, affix_match.start(), len(form.string))
+    form.add_annotation(affix)
 
     if inflection.subject is not Subject.IMPERSONAL:
         if spec.subject_len is not None:
             subject_start = len(form.string) - spec.subject_len
         else:
             subject_start = affix_match.start()
-        form.annotate(VerbSubject, subject_start)
+        subject = VerbSubject(form.string, subject_start, len(form.string))
+        form.add_annotation(subject)
 
     if inflection.variant is not None:
         variant_start = len(form.string) - len(spec.affix)
-        form.annotate(VerbVariant, variant_start, variant_start + 2)
+        variant = VerbVariant(form.string, variant_start, variant_start + 2)
+        form.add_annotation(variant)

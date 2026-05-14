@@ -191,6 +191,7 @@ class _SyllableAnalysisState:
     def _add_syllable(self) -> None:
         first_phoneme = self._syllable_phonemes[0]
         last_phoneme = self._syllable_phonemes[-1]
-        syllable = self._word.annotate(Syllable, first_phoneme.start, last_phoneme.stop)
+        syllable = Syllable(self._word.string, first_phoneme.start, last_phoneme.stop)
+        self._word.add_annotation(syllable)
         self._syllables.append(syllable)
         self._syllable_phonemes.clear()

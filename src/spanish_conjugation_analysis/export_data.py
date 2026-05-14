@@ -164,24 +164,24 @@ def _map_syllables(element: MappedElement) -> list[int]:
 
 def _map_stress_position(element: MappedElement) -> int:
     syllables = element.annotated_form.get_annotations(Syllable)
-    stress = element.annotated_form.get_annotation(Stress)
-    return next(i for i, x in enumerate(syllables) if x.start == stress.start)
+    stress = element.annotated_form.get_annotations(Stress)
+    return next(i for i, x in enumerate(syllables) if x.start == stress[0].start)
 
 
 def _map_annotation_range(
     element: MappedElement, annotation_type: type[StringAnnotation]
 ) -> tuple[int, int]:
-    annotation = element.annotated_form.get_annotation(annotation_type)
-    return annotation.start, annotation.stop
+    annotations = element.annotated_form.get_annotations(annotation_type)
+    return annotations[0].start, annotations[0].stop
 
 
 def _map_annotation_range_or_none(
     element: MappedElement, annotation_type: type[StringAnnotation]
 ) -> tuple[int, int] | None:
-    annotation = element.annotated_form.get_annotation_or_none(annotation_type)
-    if annotation is None:
+    annotations = element.annotated_form.get_annotations(annotation_type)
+    if len(annotations) == 0:
         return None
-    return annotation.start, annotation.stop
+    return annotations[0].start, annotations[0].stop
 
 
 def _map_irregularities(element: MappedElement) -> list[ExportIrregularity]:

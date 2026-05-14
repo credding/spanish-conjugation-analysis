@@ -3,7 +3,7 @@ from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, replace
 from typing import TypeVar
 
-from annotated_string import AnnotatedString, StringAnnotation
+from annotated_string import AnnotatedString, SingletonStringAnnotation
 from ordered_enum import OrderedEnum
 from spanish_conjugation import (
     RegularMorphologyConjugator,
@@ -32,7 +32,7 @@ class Regularity(OrderedEnum):
 
 
 @dataclass(repr=False)
-class Irregularity(StringAnnotation):
+class Irregularity(SingletonStringAnnotation):
     regularity: Regularity
     diff_text: str
 
@@ -315,9 +315,12 @@ def _annotate_irregularity(
     stop = _get_phoneme_text_index(phonemes, stop_phoneme)
     diff_stop = _get_phoneme_text_index(diff_phonemes, stop_phoneme - len_diff)
 
-    return word.annotate(
-        Irregularity, start, stop, tag, diff_word.string[diff_start:diff_stop]
+    irregularity = Irregularity(
+        word.string, start, stop, tag, diff_word.string[diff_start:diff_stop]
     )
+
+    word.add_annotation(irregularity)
+    return irregularity
 
 
 def _get_phoneme_text_index(phonemes: Sequence[Phoneme], index: int) -> int:

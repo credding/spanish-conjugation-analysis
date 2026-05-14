@@ -50,63 +50,70 @@ _COMPOUND_HARD_CONSONANT_PHONEMES = {"qu": "k", "gu": "g"}
 
 def annotate_phonemes(word: AnnotatedString) -> list[Phoneme]:
     phonemes: list[Phoneme] = []
-    phoneme = annotate_phoneme(word, 0)
-    while phoneme:
+
+    pos = 0
+    while phoneme := annotate_phoneme(word, pos):
         phonemes.append(phoneme)
-        phoneme = annotate_phoneme(word, phoneme.stop)
+        pos = phoneme.stop
+
     return phonemes
 
 
 def annotate_phoneme(word: AnnotatedString, pos: int) -> Phoneme | None:
-    return _annotate_compound_phoneme(word, pos) or _annotate_simple_phoneme(word, pos)
+    phoneme = _get_phoneme(word.string, pos)
+    if phoneme is not None:
+        word.add_annotation(phoneme)
+    return phoneme
 
 
-def _annotate_compound_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
+def _get_phoneme(word: str, pos: int) -> Phoneme | None:
+    return _get_compound_phoneme(word, pos) or _get_simple_phoneme(word, pos)
+
+
+def _get_compound_phoneme(word: str, start: int) -> Phoneme | None:
     stop = start + 2
-    if stop > len(word.string):
+    if stop > len(word):
         return None
 
-    grapheme = word.string[start:stop]
+    grapheme = word[start:stop]
 
     if grapheme[0] == "h" and grapheme[1] in VOWELS:
-        return _annotate_vowel_phoneme(word, start, stop, grapheme[1])
+        return _get_vowel_phoneme(word, start, stop, grapheme[1])
 
     if grapheme in _COMPOUND_CONSONANT_PHONEMES:
         phoneme = _COMPOUND_CONSONANT_PHONEMES[grapheme]
     elif (
-        _is_soft_vowel(word.string, start + 2)
+        _is_soft_vowel(word, start + 2)
         and grapheme in _COMPOUND_HARD_CONSONANT_PHONEMES
     ):
         phoneme = _COMPOUND_HARD_CONSONANT_PHONEMES[grapheme]
     else:
         return None
 
-    return word.annotate(Phoneme, start, stop, PhonemeKind.CONSONANT, phoneme)
+    return Phoneme(word, start, stop, PhonemeKind.CONSONANT, phoneme)
 
 
-def _annotate_simple_phoneme(word: AnnotatedString, start: int) -> Phoneme | None:
+def _get_simple_phoneme(word: str, start: int) -> Phoneme | None:
     stop = start + 1
-    if stop > len(word.string):
+    if stop > len(word):
         return None
 
-    grapheme = word.string[start:stop]
+    grapheme = word[start:stop]
 
     if grapheme in VOWELS:
-        return _annotate_vowel_phoneme(word, start, stop, grapheme)
+        return _get_vowel_phoneme(word, start, stop, grapheme)
 
-    if _is_soft_vowel(word.string, start + 1) and grapheme in _SOFT_CONSONANT_PHONEMES:
+    if _is_soft_vowel(word, start + 1) and grapheme in _SOFT_CONSONANT_PHONEMES:
         phoneme = _SOFT_CONSONANT_PHONEMES[grapheme]
     elif start == 0 and grapheme in _START_SUBSTITUTE_PHONEMES:
         phoneme = _START_SUBSTITUTE_PHONEMES[grapheme]
     else:
         phoneme = _SUBSTITUTE_PHONEMES.get(grapheme, grapheme)
 
-    return word.annotate(Phoneme, start, stop, PhonemeKind.CONSONANT, phoneme)
+    return Phoneme(word, start, stop, PhonemeKind.CONSONANT, phoneme)
 
 
-def _annotate_vowel_phoneme(
-    word: AnnotatedString, start: int, stop: int, grapheme: str
-) -> Phoneme:
+def _get_vowel_phoneme(word: str, start: int, stop: int, grapheme: str) -> Phoneme:
     phoneme_kind = (
         PhonemeKind.STRONG_VOWEL
         if grapheme in STRONG_VOWELS
@@ -114,7 +121,7 @@ def _annotate_vowel_phoneme(
     )
     phoneme = _SUBSTITUTE_PHONEMES.get(grapheme, grapheme)
 
-    return word.annotate(Phoneme, start, stop, phoneme_kind, phoneme)
+    return Phoneme(word, start, stop, phoneme_kind, phoneme)
 
 
 def _is_soft_vowel(word: str, pos: int) -> bool:
