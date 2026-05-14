@@ -116,4 +116,4 @@ class ExportVerbForm(ExportVerbFormId, ExportElement):
 class ExportIrregularity(BaseModel):
     regularity: Regularity
     range: tuple[int, int]
-    from_form: str
+    diff_text: str

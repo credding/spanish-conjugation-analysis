@@ -37,10 +37,6 @@ class Irregularity(SingletonStringAnnotation):
     diff_text: str
 
     @property
-    def diff_string(self) -> str:
-        return f"{self.string[: self.start]}{self.diff_text}{self.string[self.stop :]}"
-
-    @property
     def diff_stop(self) -> int:
         return self.stop - (len(self.text) - len(self.diff_text))
 

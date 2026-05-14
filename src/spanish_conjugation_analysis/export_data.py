@@ -190,7 +190,7 @@ def _map_irregularities(element: MappedElement) -> list[ExportIrregularity]:
             ExportIrregularity(
                 regularity=x.regularity,
                 range=(x.start, x.stop),
-                from_form=x.diff_string,
+                diff_text=x.diff_text,
             )
             for x in element.annotated_form.get_annotations(Irregularity)
         ),
