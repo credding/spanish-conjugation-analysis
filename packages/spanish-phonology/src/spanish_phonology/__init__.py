@@ -4,6 +4,7 @@ from ._phonetic_analysis import (
     annotate_phoneme,
     annotate_phonemes,
 )
+from ._phonetic_diff import PhoneticDiffResult, get_phonetic_diff
 from ._phonetic_spelling import PhoneticForm, SpellingType, get_phonetic_form
 from ._stress_analysis import Stress, annotate_stress
 from ._syllable_analysis import Syllable, annotate_syllables
@@ -11,6 +12,7 @@ from ._syllable_analysis import Syllable, annotate_syllables
 __all__ = [
     "Phoneme",
     "PhonemeKind",
+    "PhoneticDiffResult",
     "PhoneticForm",
     "SpellingType",
     "Stress",
@@ -21,6 +23,7 @@ __all__ = [
     "annotate_syllables",
     "get_graphic_form",
     "get_graphic_form_no_stress",
+    "get_phonetic_diff",
     "get_phonetic_form",
     "get_phonetic_form_no_stress",
     "phonetics",

@@ -1,9 +1,8 @@
 from collections import defaultdict
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Hashable
 from dataclasses import dataclass, replace
-from typing import TypeVar
 
-from annotated_string import AnnotatedString, SingletonStringAnnotation
+from annotated_string import AnnotatedString, DiffStringAnnotation
 from ordered_enum import OrderedEnum
 from spanish_conjugation import (
     RegularMorphologyConjugator,
@@ -11,8 +10,7 @@ from spanish_conjugation import (
     VerbConjugator,
 )
 from spanish_grammar import Inflection, Tense, Verb, VerbForm
-from spanish_phonology import Phoneme, annotate_phonemes
-from spanish_phonology.phonetics import TX_REMOVE_DIACRITICS
+from spanish_phonology import SpellingType, annotate_phonemes, get_phonetic_diff
 
 from .grammar_index import GrammarIndex, TaggedVerb, TaggedVerbForm
 from .grammar_index_model import IndexVerbForm, MappedVerbForm
@@ -32,26 +30,11 @@ class Regularity(OrderedEnum):
 
 
 @dataclass(repr=False)
-class Irregularity(SingletonStringAnnotation):
+class Irregularity(DiffStringAnnotation):
     regularity: Regularity
-    diff_text: str
-
-    @property
-    def diff_stop(self) -> int:
-        return self.stop - (len(self.text) - len(self.diff_text))
 
     def unique_key(self) -> Hashable:
         return type(self), self.regularity
-
-    def __repr__(self) -> str:
-        return (
-            f"{type(self).__name__}("
-            f"{self.string[: self.start]}"
-            f"[{self.diff_text or ''''''} -> {self.text or ''''''}]"
-            f"{self.string[self.stop :]})"
-            f"{super().__repr__()[:-1]}, "
-            f"regularity={self.regularity!r})"
-        )
 
 
 class _CorrectBaseFormConjugator(VerbConjugator):
@@ -221,8 +204,8 @@ def _annotate_reg_spell_change(
     _annotate_irregularity(
         form.annotated_form,
         reg_spell_form.alt_phonology or reg_spell_form.annotated_form,
-        eq=_eq_phoneme_text,
-        tag=Regularity.REGULAR_SPELLING_CHANGE,
+        SpellingType.GRAPHIC,
+        Regularity.REGULAR_SPELLING_CHANGE,
     )
 
 
@@ -230,8 +213,8 @@ def _annotate_irreg_spell(form: MappedVerbForm, reg_spell_form: MappedVerbForm) 
     irreg_spell = _annotate_irregularity(
         form.annotated_form,
         reg_spell_form.alt_phonology or reg_spell_form.annotated_form,
-        eq=_eq_phoneme_text_norm,
-        tag=Regularity.IRREGULAR_SPELLING,
+        SpellingType.GRAPHIC_NO_STRESS,
+        Regularity.IRREGULAR_SPELLING,
     )
 
     if irreg_spell is None:
@@ -242,8 +225,8 @@ def _annotate_irreg_morph(form: MappedVerbForm, reg_morph_form: MappedVerbForm) 
     irreg_morph = _annotate_irregularity(
         form.annotated_form,
         reg_morph_form.annotated_form,
-        eq=_eq_phoneme,
-        tag=Regularity.IRREGULAR_MORPHOLOGY,
+        SpellingType.PHONETIC,
+        Regularity.IRREGULAR_MORPHOLOGY,
     )
 
     if irreg_morph is None:
@@ -276,8 +259,8 @@ def _annotate_irreg_constr(
     _annotate_irregularity(
         form.annotated_form,
         reg_constr_form.annotated_form,
-        eq=_eq_phoneme_text,
-        tag=Regularity.IRREGULAR_CONSTRUCTION,
+        SpellingType.GRAPHIC,
+        Regularity.IRREGULAR_CONSTRUCTION,
     )
 
 
@@ -289,83 +272,20 @@ def _tag_irregularities(form: TaggedVerbForm) -> None:
 def _annotate_irregularity(
     word: AnnotatedString,
     diff_word: AnnotatedString,
-    /,
-    *,
-    eq: Callable[[Phoneme, Phoneme], bool],
+    spelling_type: SpellingType,
     tag: Regularity,
 ) -> Irregularity | None:
-    phonemes = word.get_annotations(Phoneme)
-    diff_phonemes = diff_word.get_annotations(Phoneme)
-
-    diff_range = _get_diff_range(phonemes, diff_phonemes, eq=eq)
-    if diff_range is None:
+    diff_result = get_phonetic_diff(word, diff_word, spelling_type)
+    if diff_result is None:
         return None
 
-    start_phoneme, stop_phoneme = diff_range
-
-    start = _get_phoneme_text_index(phonemes, start_phoneme)
-    diff_start = _get_phoneme_text_index(diff_phonemes, start_phoneme)
-
-    len_diff = len(phonemes) - len(diff_phonemes)
-
-    stop = _get_phoneme_text_index(phonemes, stop_phoneme)
-    diff_stop = _get_phoneme_text_index(diff_phonemes, stop_phoneme - len_diff)
-
     irregularity = Irregularity(
-        word.string, start, stop, tag, diff_word.string[diff_start:diff_stop]
+        word.string,
+        diff_result.start,
+        diff_result.stop,
+        diff_word.string[diff_result.diff_start : diff_result.diff_stop],
+        tag,
     )
 
     word.add_annotation(irregularity)
     return irregularity
-
-
-def _get_phoneme_text_index(phonemes: Sequence[Phoneme], index: int) -> int:
-    return phonemes[index].start if index < len(phonemes) else len(phonemes[-1].string)
-
-
-_T = TypeVar("_T")
-
-
-def _get_diff_range(
-    string: Sequence[_T],
-    diff_string: Sequence[_T],
-    /,
-    *,
-    eq: Callable[[_T, _T], bool] = lambda x, y: x == y,
-) -> tuple[int, int] | None:
-    start = 0
-    while (
-        start < len(string)
-        and start < len(diff_string)
-        and eq(string[start], diff_string[start])
-    ):
-        start += 1
-
-    if len(string) == len(diff_string) == start:
-        return None
-
-    len_diff = len(string) - len(diff_string)
-
-    stop = len(string)
-    while (
-        stop > start
-        and stop > len_diff
-        and eq(string[stop - 1], diff_string[stop - len_diff - 1])
-    ):
-        stop -= 1
-
-    return start, stop
-
-
-def _eq_phoneme(a: Phoneme, b: Phoneme) -> bool:
-    return (a.phoneme_kind, a.phoneme) == (b.phoneme_kind, b.phoneme)
-
-
-def _eq_phoneme_text(a: Phoneme, b: Phoneme) -> bool:
-    return a.text == b.text
-
-
-def _eq_phoneme_text_norm(a: Phoneme, b: Phoneme) -> bool:
-    a_text_norm = a.text.translate(TX_REMOVE_DIACRITICS)
-    b_text_norm = b.text.translate(TX_REMOVE_DIACRITICS)
-    return a_text_norm == b_text_norm

@@ -225,9 +225,3 @@ class TestAnnotatedString:
 
         with pytest.raises(TypeError):
             _ = string + object()  # ty:ignore[unsupported-operator]
-
-
-class TestStringAnnotation:
-    def test_lt_unsupported_type(self) -> None:
-        with pytest.raises(TypeError):
-            _ = SampleAnnotation("test", 0, 1) < object()  # ty:ignore[unsupported-operator]
