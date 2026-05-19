@@ -188,9 +188,7 @@ def _map_irregularities(element: MappedElement) -> list[ExportIrregularity]:
     return sorted(
         (
             ExportIrregularity(
-                regularity=x.regularity,
-                range=(x.start, x.stop),
-                diff_text=x.diff_text,
+                regularity=x.regularity, range=(x.start, x.stop), diff_text=x.diff_text
             )
             for x in element.annotated_form.get_annotations(Irregularity)
         ),
