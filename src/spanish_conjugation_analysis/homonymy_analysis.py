@@ -1,5 +1,7 @@
 from ordered_enum import OrderedEnum
 
+from spanish_conjugation_analysis.grammar_index_model import MappedVerbForm
+
 from .conjugation_analysis import Regularity
 from .grammar_index import GrammarIndex, TaggedElement
 
@@ -25,7 +27,10 @@ class HomonymyAnalyzer:
             form.value.graphic_form_no_stress,
         )
         heteronymous_forms -= {
-            x for x in heteronymous_forms if form.value.graphic_form in x.tags
+            x
+            for x in heteronymous_forms
+            if form.value.graphic_form in x.tags
+            or (type(form.value) is MappedVerbForm and form.value.inflection in x.tags)
         }
 
         if len(heteronymous_forms) > 0:

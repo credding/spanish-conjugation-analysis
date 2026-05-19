@@ -4,12 +4,17 @@ from enum import Enum, auto
 from annotated_string import AnnotatedString
 
 from spanish_phonology import Phoneme
-from spanish_phonology.phonetics import TX_ADD_STRESS, TX_REMOVE_STRESS
+from spanish_phonology.phonetics import (
+    TX_ADD_STRESS,
+    TX_REMOVE_DIACRITICS,
+    TX_REMOVE_STRESS,
+)
 
 
 class SpellingType(Enum):
     GRAPHIC = auto()
     GRAPHIC_NO_STRESS = auto()
+    GRAPHIC_NO_DIACRITICS = auto()
     PHONETIC = auto()
     PHONETIC_NO_STRESS = auto()
 
@@ -26,6 +31,7 @@ def get_phonetic_form(
     form = {
         SpellingType.GRAPHIC: _get_graphic_form,
         SpellingType.GRAPHIC_NO_STRESS: _get_graphic_form_no_stress,
+        SpellingType.GRAPHIC_NO_DIACRITICS: _get_graphic_form_no_diacritics,
         SpellingType.PHONETIC: _get_phonetic_form,
         SpellingType.PHONETIC_NO_STRESS: _get_phonetic_form_no_stress,
     }[spelling_type](word)
@@ -39,6 +45,10 @@ def _get_graphic_form(word: AnnotatedString) -> str:
 
 def _get_graphic_form_no_stress(word: AnnotatedString) -> str:
     return word.string.translate(TX_REMOVE_STRESS)
+
+
+def _get_graphic_form_no_diacritics(word: AnnotatedString) -> str:
+    return word.string.translate(TX_REMOVE_DIACRITICS)
 
 
 def _get_phonetic_form(word: AnnotatedString) -> str:

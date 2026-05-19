@@ -19,6 +19,7 @@ from .grammar_index_model import IndexVerbForm, MappedVerbForm
 class Regularity(OrderedEnum):
     MODEL_VERB = "verbo modelo"
     CORRECT_FORM = "forma correcta"
+    INCORRECT_FORM = "forma incorrecta"
     CONSTRUCTED_FORM = "forma construida"
     REGULAR_MORPHOLOGY = "morfología regular"
     IRREGULAR_MORPHOLOGY = "morfología irregular"
@@ -147,6 +148,9 @@ class ConjugationAnalyzer:
             )
             reg_form.tag(regularity)
 
+            if Regularity.CORRECT_FORM not in reg_form.tags:
+                reg_form.tag(Regularity.INCORRECT_FORM)
+
         return len(reg_annotated_forms)
 
     def _lookup_reg_spell_form(self, form: TaggedVerbForm) -> TaggedVerbForm:
@@ -213,7 +217,7 @@ def _annotate_irreg_spell(form: MappedVerbForm, reg_spell_form: MappedVerbForm) 
     irreg_spell = _annotate_irregularity(
         form.annotated_form,
         reg_spell_form.alt_phonology or reg_spell_form.annotated_form,
-        SpellingType.GRAPHIC_NO_STRESS,
+        SpellingType.GRAPHIC_NO_DIACRITICS,
         Regularity.IRREGULAR_SPELLING,
     )
 

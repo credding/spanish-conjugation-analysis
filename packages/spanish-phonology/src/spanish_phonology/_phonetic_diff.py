@@ -5,7 +5,7 @@ from annotated_string import AnnotatedString
 
 from ._phonetic_analysis import Phoneme
 from ._phonetic_spelling import SpellingType
-from .phonetics import TX_REMOVE_DIACRITICS
+from .phonetics import TX_REMOVE_DIACRITICS, TX_REMOVE_STRESS
 
 
 @dataclass
@@ -22,6 +22,7 @@ def get_phonetic_diff(
     eq_phoneme = {
         SpellingType.GRAPHIC: _eq_graphic,
         SpellingType.GRAPHIC_NO_STRESS: _eq_graphic_no_stress,
+        SpellingType.GRAPHIC_NO_DIACRITICS: _eq_graphic_no_diacritics,
         SpellingType.PHONETIC: _eq_phonetic,
         SpellingType.PHONETIC_NO_STRESS: _eq_phonetic_no_stress,
     }[spelling_type]
@@ -89,6 +90,12 @@ def _eq_graphic(a: Phoneme, b: Phoneme) -> bool:
 
 
 def _eq_graphic_no_stress(a: Phoneme, b: Phoneme) -> bool:
+    a_text_norm = a.text.translate(TX_REMOVE_STRESS)
+    b_text_norm = b.text.translate(TX_REMOVE_STRESS)
+    return a_text_norm == b_text_norm
+
+
+def _eq_graphic_no_diacritics(a: Phoneme, b: Phoneme) -> bool:
     a_text_norm = a.text.translate(TX_REMOVE_DIACRITICS)
     b_text_norm = b.text.translate(TX_REMOVE_DIACRITICS)
     return a_text_norm == b_text_norm
