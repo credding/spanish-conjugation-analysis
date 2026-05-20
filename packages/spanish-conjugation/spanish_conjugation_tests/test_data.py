@@ -1,9 +1,9 @@
+from spanish_grammar import Tense, Subject, Variant
 import csv
 from importlib.resources import files
 from typing import NamedTuple, cast
 
 from annotated_string import AnnotatedString
-from spanish_grammar import Inflection, Subject, Tense, Variant, Verb
 from spanish_phonology import annotate_phonemes
 
 __test__ = False
@@ -11,8 +11,10 @@ __test__ = False
 
 class TestVerbForm(NamedTuple):
     form: str
-    verb: Verb
-    inflection: Inflection
+    verb: str
+    tense: Tense
+    subject: Subject
+    variant: Variant | None
     annotated_form: AnnotatedString
 
 
@@ -32,12 +34,10 @@ def _load_test_data(name: str) -> list[TestVerbForm]:
             result.extend(
                 TestVerbForm(
                     form=row["form"],
-                    verb=Verb(row["verb"]),
-                    inflection=Inflection(
-                        tense=Tense(row["tense"]),
-                        subject=Subject(subject),
-                        variant=Variant(row["variant"]) if row["variant"] else None,
-                    ),
+                    verb=row["verb"],
+                    tense=Tense(row["tense"]),
+                    subject=Subject(subject),
+                    variant=Variant(row["variant"]) if row["variant"] else None,
                     annotated_form=annotated_form,
                 )
                 for subject in row["subject"].split(";")
