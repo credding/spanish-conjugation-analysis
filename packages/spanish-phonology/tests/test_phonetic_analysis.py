@@ -31,7 +31,7 @@ def first_phoneme(text: str) -> Phoneme:
     word = AnnotatedString(text)
     phoneme = annotate_phoneme(word, 0)
     assert phoneme is not None
-    assert [*word.annotations] == [phoneme]
+    assert word.get_annotations(Phoneme) == [phoneme]
     return phoneme
 
 
@@ -39,7 +39,7 @@ def consecutive_phoneme(text: str) -> Phoneme:
     word = AnnotatedString("_" + text)
     phoneme = annotate_phoneme(word, 1)
     assert phoneme is not None
-    assert [*word.annotations] == [phoneme]
+    assert word.get_annotations(Phoneme) == [phoneme]
     return phoneme
 
 
@@ -63,7 +63,7 @@ class TestAnnotatePhoneme:
     def test_empty(self) -> None:
         word = AnnotatedString("")
         phonemes = annotate_phonemes(word)
-        assert [*word.annotations] == phonemes
+        assert word.get_annotations(Phoneme) == phonemes
         assert phonemes == []
 
     @pytest.mark.parametrize(
