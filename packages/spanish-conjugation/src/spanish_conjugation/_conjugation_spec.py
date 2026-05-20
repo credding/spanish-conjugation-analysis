@@ -34,14 +34,10 @@ def _read_conjugation_spec_rows() -> dict[ConjugationSpecKey, dict[str, Any]]:
     with conjugation_data_path.open("r") as f:
         for row in csv.DictReader(f, dialect=csv.unix_dialect):
             tense = Tense(row["tense"])
-            subjects = (
-                tuple(Subject(x) for x in row["subjects"].split(";"))
-                if row["subjects"]
-                else None
-            )
+            subjects = tuple(Subject(x) for x in row["subjects"].split(";"))
             variant = Variant(row["variant"]) if row["variant"] else None
             for ending in row["endings"].split(";"):
-                for subject in subjects or [Subject.IMPERSONAL]:
+                for subject in subjects:
                     inflection = Inflection(tense, subject, variant)
                     result[ConjugationSpecKey(ending, inflection)] = row
     return result

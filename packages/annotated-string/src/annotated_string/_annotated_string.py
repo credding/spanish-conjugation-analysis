@@ -84,6 +84,16 @@ class AnnotatedString:
             case _:
                 return NotImplemented
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AnnotatedString):
+            return NotImplemented
+        return (self.string, self._annotations) == (other.string, other._annotations)
+
+    __hash__ = None
+
+    def __repr__(self) -> str:
+        return f"AnnotatedString({self.string!r}, {self.get_annotations()!r})"
+
 
 class _AnnotationSet(MutableSet[StringAnnotation]):
     def __init__(self, string: str) -> None:

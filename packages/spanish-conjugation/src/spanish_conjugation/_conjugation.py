@@ -44,7 +44,8 @@ class RegularSpellingConjugator(VerbConjugator):
     def conjugate(self, verb: Verb, inflection: Inflection) -> list[AnnotatedString]:
         spec = CONJUGATION_SPEC.get(ConjugationSpecKey(verb.ending, inflection))
         if spec is None:
-            return []
+            msg = f"invalid inflection: {inflection}"
+            raise ValueError(msg)
 
         result: list[AnnotatedString] = []
 
@@ -76,10 +77,10 @@ class RegularSpellingConjugator(VerbConjugator):
                 stem, last_phoneme, last_phoneme.text.translate(TX_ADD_STRESS)
             )
 
-        affix = AnnotatedString(affix)
+        affix = AnnotatedString("_" + affix)
         annotate_phonemes(affix)
 
-        return stem + affix
+        return stem + affix[1:]
 
     def _adapt_affix(self, stem: AnnotatedString, affix: str) -> str:  # noqa: ARG002
         return affix
