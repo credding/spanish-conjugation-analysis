@@ -110,10 +110,8 @@ class _SyllableAnalysisState:
                 Phoneme(phoneme="l"),
             ]:
                 self._add_syllable_without_previous_phonemes(2)
-            case [Phoneme(phoneme="n" | "b"), Phoneme(phoneme="s"), _, *_]:
+            case _ if end_consonant_count >= 3:  # noqa: PLR2004
                 self._add_syllable_without_previous_phonemes(end_consonant_count - 2)
-            case _ if end_consonant_count > 1:
-                self._add_syllable_without_previous_phonemes(end_consonant_count - 1)
             case _:
                 self._add_syllable_without_previous_phonemes(1)
 

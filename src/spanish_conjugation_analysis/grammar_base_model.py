@@ -32,7 +32,7 @@ class BaseElement:
 
     @property
     def lemma_tag(self) -> Lemma:
-        return self.element_tag.lemma_tag
+        return self.element_tag.lemma
 
     @property
     def form(self) -> str:
@@ -70,7 +70,7 @@ class BaseVerbForm(BaseElement):
 
     @property
     def lemma_tag(self) -> Verb:
-        return self.element_tag.lemma_tag
+        return self.element_tag.lemma
 
     @property
     def inflection(self) -> Inflection:

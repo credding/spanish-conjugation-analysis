@@ -18,6 +18,7 @@ class TestAnnotateSyllables:
         assert syllables == []
 
     # Reference: https://catalog.ldc.upenn.edu/docs/LDC2019S07/Syllabification_Rules_in_Spanish.pdf
+    # Supporting reference: https://baselang.com/blog/pronunciation/spanish-syllables/
     @pytest.mark.parametrize(
         ("text", "expected_syllables"),
         [
@@ -35,11 +36,12 @@ class TestAnnotateSyllables:
             ("casa", ["ca", "sa"]),
             ("miraron", ["mi", "ra", "ron"]),
             ("demora", ["de", "mo", "ra"]),
-            # two consonants between two vowels
+            # bilabial consonant with liquid consonant
             ("oprimo", ["o", "pri", "mo"]),
             ("obrero", ["o", "bre", "ro"]),
             ("aplomo", ["a", "plo", "mo"]),
             ("hablando", ["ha", "blan", "do"]),
+            # labiodental consonant with liquid consonant
             ("cafre", ["ca", "fre"]),
             ("aflojar", ["a", "flo", "jar"]),
             # velar consonant with liquid consonant
@@ -58,23 +60,30 @@ class TestAnnotateSyllables:
             # /tl/ is broken within a word
             ("atlas", ["at", "las"]),
             ("atlantico", ["at", "lan", "ti", "co"]),
-            # two-consonant groups
+            # two consonant clusters
             ("inseparable", ["in", "se", "pa", "ra", "ble"]),
             ("artista", ["ar", "tis", "ta"]),
             ("obtener", ["ob", "te", "ner"]),
             ("cuenta", ["cuen", "ta"]),
             ("comedlo", ["co", "med", "lo"]),
             ("ponedla", ["po", "ned", "la"]),
-            # three or more consonants
-            ("empleados", ["em", "ple", "a", "dos"]),
-            ("englobar", ["en", "glo", "bar"]),
-            ("inflamar", ["in", "fla", "mar"]),
-            ("contraer", ["con", "tra", "er"]),
-            # unbreakable ns or bs sequences
+            # three consonant clusters
+            ("constancia", ["cons", "tan", "cia"]),
+            ("perspectiva", ["pers", "pec", "ti", "va"]),
+            ("istmo", ["ist", "mo"]),
             ("constitución", ["cons", "ti", "tu", "ción"]),
             ("instaurar", ["ins", "tau", "rar"]),
             ("obstinado", ["obs", "ti", "na", "do"]),
             ("obstáculo", ["obs", "tá", "cu", "lo"]),
+            # three consonant clusters ending with unbreakable pair
+            ("empleados", ["em", "ple", "a", "dos"]),
+            ("englobar", ["en", "glo", "bar"]),
+            ("inflamar", ["in", "fla", "mar"]),
+            ("contraer", ["con", "tra", "er"]),
+            # four consonant clusters
+            ("monstruo", ["mons", "truo"]),
+            ("abstracto", ["abs", "trac", "to"]),
+            ("construir", ["cons", "truir"]),
             # two strong vowels (hiatus)
             ("aéreo", ["a", "é", "re", "o"]),
             ("pelear", ["pe", "le", "ar"]),

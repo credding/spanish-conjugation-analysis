@@ -37,16 +37,16 @@ class Lemma:
 
 @dataclass(frozen=True, slots=True, order=True)
 class Element:
-    lemma_tag: Lemma
+    lemma: Lemma
     form: str
 
     @property
     def base_form(self) -> str:
-        return self.lemma_tag.base_form
+        return self.lemma.base_form
 
     @property
     def part_of_speech(self) -> PartOfSpeech:
-        return self.lemma_tag.part_of_speech
+        return self.lemma.part_of_speech
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +71,7 @@ class Verb(Lemma):
 @dataclass(frozen=True, slots=True)
 @total_ordering
 class VerbForm(Element):
-    lemma_tag: Verb
+    lemma: Verb
     inflection: Inflection
 
     @property
@@ -89,8 +89,8 @@ class VerbForm(Element):
     def __lt__(self, other: Element) -> bool:
         if not isinstance(other, VerbForm):
             return super().__lt__(other)
-        a = (self.lemma_tag, self.inflection, self.form)
-        b = (other.lemma_tag, other.inflection, other.form)
+        a = (self.lemma, self.inflection, self.form)
+        b = (other.lemma, other.inflection, other.form)
         return a < b
 
 

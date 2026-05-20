@@ -134,9 +134,7 @@ class ConjugationAnalyzer:
     def _index_reg_forms(
         self, form_tag: VerbForm, conjugator: VerbConjugator, regularity: Regularity
     ) -> int:
-        reg_annotated_forms = conjugator.conjugate(
-            form_tag.lemma_tag, form_tag.inflection
-        )
+        reg_annotated_forms = conjugator.conjugate(form_tag.lemma, form_tag.inflection)
 
         for i, reg_annotated_form in enumerate(reg_annotated_forms):
             reg_form = self._index.index_verb_form(
