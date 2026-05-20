@@ -63,10 +63,9 @@ extend-ignore = [
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"**/tests/**/*.py" = [
+"**/*_tests/**/*.py" = [
     "PLR0913",
     "PLR2004",
-    "PT011",
     "S101",
 ]
 
