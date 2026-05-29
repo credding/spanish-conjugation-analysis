@@ -23,8 +23,8 @@ dev = [
     "joblib-stubs>=1.5.3.1.20260117",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "ruff>=0.15.13",
-    "ty>=0.0.37",
+    "ruff>=0.15.14",
+    "ty>=0.0.38",
 ]
 
 [build-system]

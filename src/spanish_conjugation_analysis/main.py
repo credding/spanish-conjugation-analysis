@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import time
 
@@ -277,7 +278,12 @@ class Context:
         export_json = export_data.model_dump_json(
             ensure_ascii=False, exclude_defaults=True
         )
-        (artifacts_path / "verb_data.json").write_text(export_json)
+        export_bytes = export_json.encode()
+        sha256sum = hashlib.sha256(export_bytes).hexdigest()
+        (artifacts_path / "verb_data.json").write_bytes(export_bytes)
+        (artifacts_path / "verb_data.json.version").write_text(
+            f"{sha256sum},{len(export_bytes)}"
+        )
 
         _logger.info("exported %d lemma(s), %d verb(s)", len(lemmas), len(verbs))
         _logger.info(

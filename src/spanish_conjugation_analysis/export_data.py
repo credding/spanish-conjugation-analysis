@@ -163,9 +163,8 @@ def _map_syllables(element: MappedElement) -> list[int]:
 
 
 def _map_stress_position(element: MappedElement) -> int:
-    syllables = element.annotated_form.get_annotations(Syllable)
     stress = element.annotated_form.get_annotations(Stress)
-    return next(i for i, x in enumerate(syllables) if x.start == stress[0].start)
+    return stress[0].start
 
 
 def _map_annotation_range(

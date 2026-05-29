@@ -1,9 +1,9 @@
-from spanish_grammar import Tense, Subject, Variant
 import csv
 from importlib.resources import files
 from typing import NamedTuple, cast
 
 from annotated_string import AnnotatedString
+from spanish_grammar import Subject, Tense, Variant
 from spanish_phonology import annotate_phonemes
 
 __test__ = False

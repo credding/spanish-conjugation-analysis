@@ -29,13 +29,13 @@ class PartOfSpeech(OrderedEnum):
     VERB = "verbo"
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, slots=True)
 class Lemma:
     base_form: str
     part_of_speech: PartOfSpeech
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, slots=True)
 class Element:
     lemma: Lemma
     form: str
@@ -69,7 +69,6 @@ class Verb(Lemma):
 
 
 @dataclass(frozen=True, slots=True)
-@total_ordering
 class VerbForm(Element):
     lemma: Verb
     inflection: Inflection
@@ -85,13 +84,6 @@ class VerbForm(Element):
     @property
     def variant(self) -> Variant | None:
         return self.inflection.variant
-
-    def __lt__(self, other: Element) -> bool:
-        if not isinstance(other, VerbForm):
-            return super().__lt__(other)
-        a = (self.lemma, self.inflection, self.form)
-        b = (other.lemma, other.inflection, other.form)
-        return a < b
 
 
 @dataclass(frozen=True, slots=True)
