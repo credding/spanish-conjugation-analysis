@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from dataclasses import dataclass
 
 from annotated_string import AnnotatedString, SingletonStringAnnotation

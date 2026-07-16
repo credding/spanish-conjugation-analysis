@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import csv
 from importlib.resources import files
 from typing import NamedTuple, cast

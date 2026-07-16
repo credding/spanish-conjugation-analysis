@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from contextlib import closing
 
 from spanish_grammar import Element, Lemma, PartOfSpeech

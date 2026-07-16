@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from collections.abc import Hashable
 
 from annotated_string import StringAnnotation

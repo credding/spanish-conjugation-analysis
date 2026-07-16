@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import pytest
 
 from .test_annotated_string import SampleAnnotation

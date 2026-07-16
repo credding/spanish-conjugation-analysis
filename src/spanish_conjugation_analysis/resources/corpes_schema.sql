@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
 CREATE TABLE freq_elements
 (
     id                     INTEGER PRIMARY KEY,

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ._grammar_model import (
     Element,
     Inflection,

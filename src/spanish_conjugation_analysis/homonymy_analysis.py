@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ordered_enum import OrderedEnum
 
 from spanish_conjugation_analysis.grammar_index_model import MappedVerbForm

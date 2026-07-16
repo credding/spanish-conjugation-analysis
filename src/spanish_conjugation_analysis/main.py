@@ -1,4 +1,5 @@
-import hashlib
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import logging
 import time
 
@@ -159,6 +160,7 @@ class Context:
         result: list[TaggedVerb] = [
             self._index_verb(Verb(base_form))
             for base_form in (resources_path / list_name).read_text().splitlines()
+            if not base_form.startswith("#")
         ]
 
         _logger.info("indexed %d verb(s)", len(result))
@@ -279,11 +281,7 @@ class Context:
             ensure_ascii=False, exclude_defaults=True
         )
         export_bytes = export_json.encode()
-        sha256sum = hashlib.sha256(export_bytes).hexdigest()
         (artifacts_path / "verb_data.json").write_bytes(export_bytes)
-        (artifacts_path / "verb_data.json.version").write_text(
-            f"{sha256sum},{len(export_bytes)}"
-        )
 
         _logger.info("exported %d lemma(s), %d verb(s)", len(lemmas), len(verbs))
         _logger.info(

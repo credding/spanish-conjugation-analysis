@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import replace

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from collections import defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass, replace

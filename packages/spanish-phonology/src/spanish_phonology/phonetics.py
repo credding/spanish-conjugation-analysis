@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 VOWELS = "aáeéiíoóuúü"
 STRESSED_VOWELS = "áéíóú"
 STRONG_VOWELS = "aáeéíoóú"

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ._affix_analysis import (
     VerbAffix,
     VerbSubject,

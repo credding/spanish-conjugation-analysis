@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import logging
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath

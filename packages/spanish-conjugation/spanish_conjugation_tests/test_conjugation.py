@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import pytest
 from annotated_string import AnnotatedString
 from spanish_conjugation import RegularMorphologyConjugator, RegularSpellingConjugator
