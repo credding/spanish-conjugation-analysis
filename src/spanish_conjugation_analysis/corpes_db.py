@@ -2,8 +2,10 @@
 
 import csv
 import logging
+import lzma
 import sqlite3
 from contextlib import closing
+from io import TextIOWrapper
 from pathlib import Path
 
 from .resources import resources_path
@@ -40,7 +42,7 @@ class CORPESDB:
             _load_table_tsv(
                 cur,
                 table_name="freq_elements",
-                tsv_name="frecuencia_elementos_corpes_1_4.txt",
+                tsv_name="frecuencia_elementos_corpes_1_5.txt.xz",
                 fieldnames=[
                     "form",
                     "lemma",
@@ -54,30 +56,8 @@ class CORPESDB:
 
             _load_table_tsv(
                 cur,
-                table_name="freq_lemmas",
-                tsv_name="frecuencia_lemas_corpes_1_4.txt",
-                fieldnames=[
-                    "lemma",
-                    "class",
-                    "freq",
-                    "freq_norm_with_punc",
-                    "freq_norm_without_punc",
-                ],
-                skip_lines=2,
-            )
-
-            _load_table_tsv(
-                cur,
-                table_name="freq_forms",
-                tsv_name="frecuencia_formas_ortograficas_1_4.txt",
-                fieldnames=["form", "freq", "freq_norm"],
-                skip_lines=2,
-            )
-
-            _load_table_tsv(
-                cur,
                 table_name="dp_lemmas",
-                tsv_name="listas_dp_lemas.tsv",
+                tsv_name="listas_dp_lemas.tsv.xz",
                 fieldnames=[
                     None,
                     None,
@@ -118,7 +98,7 @@ def _load_table_tsv(
     )
 
     tsv_path = _corpes_data_path / tsv_name
-    with tsv_path.open("r") as f:
+    with lzma.open(tsv_path.open("rb")) as f, TextIOWrapper(f, encoding="utf-8") as f:
         for _ in range(skip_lines):
             next(f)
         reader = csv.DictReader(f, fieldnames=fieldnames, dialect=_corpes_tsv_dialect)

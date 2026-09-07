@@ -4,31 +4,26 @@ version = "0.0.1"
 description = "Analyze Spanish verb forms"
 requires-python = ">=3.11"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
-    "curl-cffi>=0.15.0",
-    "joblib>=1.5.3",
-    "ordered-enum>=0.0.10",
-    "pydantic>=2.13.4",
+    "beautifulsoup4>=4.14.3,<4.15",
+    "curl-cffi>=0.16.3",
+    "ordered-enum>=0.0.10,<0.1",
+    "pydantic>=2.13.5",
     "annotated-string==0.0.1",
     "tagged-index==0.0.1",
     "spanish-conjugation==0.0.1",
     "spanish-phonology==0.0.1",
 ]
 
-[project.scripts]
-spanish-conjugation-analysis = "spanish_conjugation_analysis:main"
-
 [dependency-groups]
 dev = [
-    "joblib-stubs>=1.5.3.1.20260117",
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.15.14",
-    "ty>=0.0.38",
+    "ruff>=0.16.5",
+    "ty>=0.0.78",
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.12,<0.12"]
+requires = ["uv_build>=0.12.9,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
@@ -40,6 +35,9 @@ tagged-index = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.ty.environment]
+python = ".venv"
 
 [tool.pytest]
 addopts = [
@@ -65,6 +63,7 @@ extend-ignore = [
 [tool.ruff.lint.extend-per-file-ignores]
 "**/*_tests/**/*.py" = [
     "PLR0913",
+    "PLR0917",
     "PLR2004",
     "S101",
 ]
@@ -74,3 +73,6 @@ split-on-trailing-comma = false
 
 [tool.ruff.format]
 skip-magic-trailing-comma = true
+
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "SPDX-License-Identifier: GPL-3.0-or-later"

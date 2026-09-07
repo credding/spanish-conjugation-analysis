@@ -3,11 +3,9 @@
 import logging
 import re
 from collections.abc import Iterable
-from pathlib import Path
 from typing import cast
 from urllib.parse import quote
 
-import joblib
 from bs4 import Tag
 from spanish_grammar import (
     Inflection,
@@ -29,25 +27,22 @@ _logger = logging.getLogger(__name__)
 
 
 class DLE:
-    def __init__(self, dle_web: DLEWeb, cache_dir: Path | None = None) -> None:
+    def __init__(self, dle_web: DLEWeb) -> None:
         self._dle_web = dle_web
-
-        memory = joblib.Memory(cache_dir, verbose=0)
-        self._get_lemma = memory.cache(_get_lemma)
-        self._get_verb = memory.cache(_get_verb)
-        self._get_verb_forms = memory.cache(_get_verb_forms)
 
     def get_lemma(self, lemma: Lemma) -> DLELemma | None:
         page = self._dle_web.get_page(lemma.base_form)
-        return self._get_lemma(page, lemma)
+        if lemma.part_of_speech is PartOfSpeech.VERB:
+            return _get_verb(page, Verb(lemma.base_form))
+        return _get_lemma(page, lemma)
 
     def get_verb(self, verb: Verb) -> DLEVerb:
         page = self._dle_web.get_page(verb.base_form)
-        return self._get_verb(page, verb)
+        return _get_verb(page, verb)
 
     def get_verb_forms(self, verb: Verb) -> list[DLEVerbForm]:
         page = self._dle_web.get_page(verb.base_form)
-        return self._get_verb_forms(page, verb)
+        return _get_verb_forms(page, verb)
 
 
 _PART_OF_SPEECH_ABBRS = {

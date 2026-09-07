@@ -5,5 +5,5 @@ __pycache__/
 htmlcov/
 dist/
 
-/artifacts/obj/
+/artifacts/
 *.log

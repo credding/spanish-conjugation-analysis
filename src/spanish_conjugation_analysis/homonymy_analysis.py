@@ -2,10 +2,9 @@
 
 from ordered_enum import OrderedEnum
 
-from spanish_conjugation_analysis.grammar_index_model import MappedVerbForm
-
 from .conjugation_analysis import Regularity
 from .grammar_index import GrammarIndex, TaggedElement
+from .grammar_index_model import MappedVerbForm
 
 
 class Homonymy(OrderedEnum):

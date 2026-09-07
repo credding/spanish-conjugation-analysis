@@ -23,10 +23,7 @@ __all__ = [
     "annotate_phonemes",
     "annotate_stress",
     "annotate_syllables",
-    "get_graphic_form",
-    "get_graphic_form_no_stress",
     "get_phonetic_diff",
     "get_phonetic_form",
-    "get_phonetic_form_no_stress",
     "phonetics",
 ]
