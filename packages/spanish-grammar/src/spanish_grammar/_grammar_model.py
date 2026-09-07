@@ -13,7 +13,7 @@ class PartOfSpeech(OrderedEnum):
     ADVERB = "adverbio"
     AFFIX = "afjio"
     ARTICLE = "artículo"
-    CONJUNCTION = "conjunión"
+    CONJUNCTION = "conjunción"
     CONTRACTION = "contracción"
     QUANTIFIER = "cuantificador"
     DEMONSTRATIVE = "demonstrativo"
